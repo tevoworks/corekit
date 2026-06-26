@@ -160,9 +160,11 @@ func (h *Handler) Download(c echo.Context) error {
 	defer fileReader.Close()
 
 	safeName := sanitizeFilename(meta.Filename)
-	contentDisposition := "attachment; filename=" + safeName
+	isDangerous := forceAttachment(meta.MIMEType)
 	contentType := meta.MIMEType
-	if forceAttachment(meta.MIMEType) {
+	contentDisposition := "inline; filename=" + safeName
+	if isDangerous {
+		contentDisposition = "attachment; filename=" + safeName
 		contentType = "application/octet-stream"
 	}
 
@@ -276,12 +278,13 @@ func (h *Handler) DownloadPublic(c echo.Context) error {
 	defer fileReader.Close()
 
 	safeName := sanitizeFilename(meta.Filename)
-	// Public downloads always use attachment disposition to prevent
-	// browser rendering of uploaded files (XSS via polyglot HTML/JS content).
-	// Authenticated downloads via DownloadFile handler may use inline
-	// for safe MIME types since they require authentication.
-	contentDisposition := "attachment; filename=" + safeName
-	contentType := "application/octet-stream"
+	isDangerous := forceAttachment(meta.MIMEType)
+	contentType := meta.MIMEType
+	contentDisposition := "inline; filename=" + safeName
+	if isDangerous {
+		contentDisposition = "attachment; filename=" + safeName
+		contentType = "application/octet-stream"
+	}
 
 	c.Response().Header().Set(echo.HeaderContentDisposition, contentDisposition)
 	c.Response().Header().Set(echo.HeaderContentType, contentType)
