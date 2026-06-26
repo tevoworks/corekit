@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -15,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/tevoworks/corekit/backend/internal/database"
 	"github.com/tevoworks/corekit/backend/internal/modules/audit"
 )
@@ -47,6 +47,9 @@ func NewS3StorageProvider(endpoint, region, bucket, accessKey, secretKey string)
 		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")))
 	}
 
+	// Disable trailing checksum for non-TLS endpoints (e.g., local MinIO)
+	opts = append(opts, config.WithRequestChecksumCalculation(aws.RequestChecksumCalculationWhenRequired))
+
 	cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
 	if err != nil {
 		return nil, err
@@ -67,11 +70,10 @@ func NewS3StorageProvider(endpoint, region, bucket, accessKey, secretKey string)
 
 func (p *S3StorageProvider) Upload(ctx context.Context, key string, size int64, content io.Reader) (string, error) {
 	_, err := p.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:               aws.String(p.bucket),
-		Key:                  aws.String(key),
-		Body:                 content,
-		ContentLength:        aws.Int64(size),
-		ServerSideEncryption: types.ServerSideEncryptionAes256,
+		Bucket:        aws.String(p.bucket),
+		Key:           aws.String(key),
+		Body:          content,
+		ContentLength: aws.Int64(size),
 	})
 	if err != nil {
 		return "", err
@@ -131,10 +133,18 @@ func (s *service) UploadFile(ctx context.Context, filename string, size int64, m
 	sanitizedName := filepath.Base(filename)
 	uniqueFilename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), sanitizedName)
 
-	hasher := sha256.New()
-	teeReader := io.TeeReader(content, hasher)
+	// Read entire content into buffer so S3 SDK can seek for hash computation
+	buf, err := io.ReadAll(content)
+	if err != nil {
+		return nil, fmt.Errorf("read content: %w", err)
+	}
 
-	storagePath, err := s.provider.Upload(ctx, uniqueFilename, size, teeReader)
+	hasher := sha256.New()
+	if _, err := hasher.Write(buf); err != nil {
+		return nil, fmt.Errorf("compute hash: %w", err)
+	}
+
+	storagePath, err := s.provider.Upload(ctx, uniqueFilename, int64(len(buf)), bytes.NewReader(buf))
 	if err != nil {
 		return nil, err
 	}
