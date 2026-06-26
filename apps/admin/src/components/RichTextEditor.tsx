@@ -2,6 +2,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
+import Underline from '@tiptap/extension-underline'
+import TextAlign from '@tiptap/extension-text-align'
 import { useRef, useState, useCallback } from 'react'
 import api from '../lib/api'
 
@@ -18,9 +20,13 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+      }),
       Link.configure({ openOnClick: false }),
       Image,
+      Underline,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
     ],
     content,
     editorProps: {
@@ -56,42 +62,67 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
 
   if (!editor) return null
 
-  const ToolbarButton = ({ onClick, active, label, testId }: { onClick: () => void; active?: boolean; label: string; testId?: string }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2 py-1 text-xs font-medium rounded hover:bg-zinc-100 transition-colors ${active ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-600'}`}
-      data-testid={testId}
-    >
+  const Btn = ({ onClick, active, label, title, testId }: {
+    onClick: () => void; active?: boolean; label: string; title?: string; testId: string
+  }) => (
+    <button type="button" onClick={onClick} title={title}
+      className={`px-1.5 py-1 text-xs font-medium rounded hover:bg-zinc-100 transition-colors leading-none
+        ${active ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-600'}`}
+      data-testid={testId}>
       {label}
     </button>
   )
 
+  const Divider = () => <span className="w-px h-4 bg-zinc-300 mx-0.5" />
+
   return (
     <div className="border border-zinc-300 rounded-lg overflow-hidden" data-testid={testId}>
-      <div className="flex flex-wrap gap-1 border-b border-zinc-200 bg-zinc-50 px-3 py-2">
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} label="B" testId="editor-bold" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} label="I" testId="editor-italic" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} label="H2" testId="editor-h2" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} label="H3" testId="editor-h3" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} label="• List" testId="editor-bullet-list" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} label="1. List" testId="editor-ordered-list" />
-        <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} label="Quote" testId="editor-quote" />
-        <ToolbarButton onClick={() => {
-          const url = window.prompt('Link URL:')
-          if (url) editor.chain().focus().setLink({ href: url }).run()
-        }} active={editor.isActive('link')} label="Link" testId="editor-link" />
-        <ToolbarButton onClick={() => fileInputRef.current?.click()} label={uploading ? '...' : 'Img'} testId="editor-image" />
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-zinc-200 bg-zinc-50 px-2 py-1.5">
+        <Btn onClick={() => editor.chain().focus().undo().run()} label="↶" title="Undo" testId="editor-undo" />
+        <Btn onClick={() => editor.chain().focus().redo().run()} label="↷" title="Redo" testId="editor-redo" />
+
+        <Divider />
+
+        <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} label={<strong>B</strong>} title="Bold" testId="editor-bold" />
+        <Btn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} label={<em>I</em>} title="Italic" testId="editor-italic" />
+        <Btn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} label={<span className="underline">U</span>} title="Underline" testId="editor-underline" />
+        <Btn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} label={<span className="line-through">S</span>} title="Strikethrough" testId="editor-strike" />
+
+        <Divider />
+
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} label="H1" title="Heading 1" testId="editor-h1" />
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} label="H2" title="Heading 2" testId="editor-h2" />
+        <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} label="H3" title="Heading 3" testId="editor-h3" />
+
+        <Divider />
+
+        <Btn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} label="<>" title="Inline code" testId="editor-code" />
+        <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} label="Code" title="Code block" testId="editor-codeblock" />
+
+        <Divider />
+
+        <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} label="•" title="Bullet list" testId="editor-bullet-list" />
+        <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} label="1." title="Ordered list" testId="editor-ordered-list" />
+        <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} label="❝" title="Blockquote" testId="editor-quote" />
+
+        <Divider />
+
+        <Btn onClick={() => { const url = window.prompt('Link URL:'); if (url) editor.chain().focus().setLink({ href: url }).run() }}
+          active={editor.isActive('link')} label="Link" title="Insert link" testId="editor-link" />
+        <Btn onClick={() => fileInputRef.current?.click()} label={uploading ? '...' : 'Img'} title="Insert image" testId="editor-image" />
+
+        <Divider />
+
+        <Btn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} label="≡" title="Align left" testId="editor-align-left" />
+        <Btn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} label="≡" title="Align center" testId="editor-align-center" />
+        <Btn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} label="≡" title="Align right" testId="editor-align-right" />
+
+        <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} label="—" title="Horizontal rule" testId="editor-hr" />
+
+        <Btn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} label="⌫" title="Clear formatting" testId="editor-clear" />
       </div>
       <EditorContent editor={editor} />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageUpload}
-        className="hidden"
-        data-testid="editor-image-input"
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" data-testid="editor-image-input" />
     </div>
   )
 }
