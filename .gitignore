@@ -78,6 +78,9 @@ frontend/test-results/
 pnpm-lock.yaml
 yarn.lock
 
+# ── Plan / Design docs (not for remote) ──
+MARKETING_APP_PLAN.md
+
 # ── Logs / Debug ──
 *.log
 npm-debug.log*
