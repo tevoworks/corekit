@@ -4,8 +4,8 @@ import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
-import { useRef, useState, useCallback } from 'react'
-import api from '../lib/api'
+import { useState } from 'react'
+import MediaManager from './MediaManager'
 
 interface RichTextEditorProps {
   content: string
@@ -15,8 +15,7 @@ interface RichTextEditorProps {
 }
 
 export default function RichTextEditor({ content, onChange, placeholder, testId }: RichTextEditorProps) {
-  const [uploading, setUploading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [mediaOpen, setMediaOpen] = useState(false)
 
   const editor = useEditor({
     extensions: [
@@ -38,27 +37,6 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
       onChange(editor.getHTML())
     },
   })
-
-  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !editor) return
-    setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await api.post('/api/storage/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      const fileData = res.data.data
-      const url = fileData.url || `/api/storage/files/${fileData.id}`
-      editor.chain().focus().setImage({ src: url }).run()
-    } catch (err) {
-      console.error('Image upload failed', err)
-    } finally {
-      setUploading(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }, [editor])
 
   if (!editor) return null
 
@@ -109,7 +87,7 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
 
         <Btn onClick={() => { const url = window.prompt('Link URL:'); if (url) editor.chain().focus().setLink({ href: url }).run() }}
           active={editor.isActive('link')} label="Link" title="Insert link" testId="editor-link" />
-        <Btn onClick={() => fileInputRef.current?.click()} label={uploading ? '...' : 'Img'} title="Insert image" testId="editor-image" />
+        <Btn onClick={() => setMediaOpen(true)} label="Img" title="Insert image" testId="editor-image" />
 
         <Divider />
 
@@ -122,7 +100,11 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
         <Btn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} label="⌫" title="Clear formatting" testId="editor-clear" />
       </div>
       <EditorContent editor={editor} />
-      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" data-testid="editor-image-input" />
+      <MediaManager
+        open={mediaOpen}
+        onClose={() => setMediaOpen(false)}
+        onSelect={(file) => { editor.chain().focus().setImage({ src: file.url }).run() }}
+      />
     </div>
   )
 }

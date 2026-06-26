@@ -11,5 +11,6 @@ type FileMetadata struct {
 	ChecksumSHA256 string    `json:"checksum_sha256,omitempty"`
 	UploadedBy     *int64    `json:"uploaded_by"`
 	IsPublic       bool      `json:"is_public"`
+	URL            string    `json:"url"`
 	CreatedAt      time.Time `json:"created_at"`
 }

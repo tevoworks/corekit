@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Card, PageHeader, Button, Input, StatusBadge } from '../../components/ui'
 import RichTextEditor from '../../components/RichTextEditor'
+import MediaManager from '../../components/MediaManager'
 import { getDraftKey, saveDraft, loadDraft, clearDraft } from '../../lib/draft'
 
 function slugify(text: string): string {
@@ -26,14 +27,13 @@ export default function PageFormPage() {
   const [featuredImageId, setFeaturedImageId] = useState<number | null>(null)
   const [featuredImageUrl, setFeaturedImageUrl] = useState('')
   const [slugConflict, setSlugConflict] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
   const [wasAutoSlugged, setWasAutoSlugged] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draftBanner, setDraftBanner] = useState<{ show: boolean; savedAt: string }>({ show: false, savedAt: '' })
   const [isDirty, setIsDirty] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState<'featured' | 'og' | null>(null)
   const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const draftKey = getDraftKey('page', id)
   const hasInitialized = useRef(false)
 
@@ -134,29 +134,6 @@ export default function PageFormPage() {
   }
 
   const handleSlugBlur = () => { checkSlug(slug) }
-
-  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setIsUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await api.post('/api/storage/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
-      const fd = res.data.data
-      setFeaturedImageId(fd.id)
-      setFeaturedImageUrl(fd.url || fd.storage_path)
-      markDirty()
-    } catch (err: any) { setError(getApiError(err)) }
-    finally { setIsUploading(false) }
-  }
-
-  const handleRemoveImage = () => {
-    setFeaturedImageId(null)
-    setFeaturedImageUrl('')
-    markDirty()
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
 
   const createMutation = useMutation({
     mutationFn: (body: any) => api.post('/api/cms/pages', body),
@@ -261,24 +238,23 @@ export default function PageFormPage() {
                   className="w-full px-3 py-3 rounded-lg border border-[var(--outline-variant)] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all"
                   data-testid="page-form-meta-description" />
               </div>
-              <Input label="OG Image URL" value={ogImage} onChange={e => { setOgImage(e.target.value); markDirty() }} data-testid="page-form-og-image" placeholder="https://..." />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Input label="OG Image URL" value={ogImage} onChange={e => { setOgImage(e.target.value); markDirty() }} data-testid="page-form-og-image" placeholder="https://..." />
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => setMediaOpen('og')} data-testid="page-form-og-browse">Browse</Button>
+              </div>
             </div>
           </div>
 
           <div className="border-t border-[var(--outline-variant)] pt-6">
             <h3 className="text-sm font-semibold text-[var(--on-surface)] mb-3">Featured Image</h3>
             <div className="flex items-center gap-3">
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleUploadImage} className="hidden" data-testid="page-form-image-input" id="page-featured-image-input" />
-              <label htmlFor="page-featured-image-input"
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg font-medium bg-white border border-[var(--outline-variant)] text-[var(--on-surface)] hover:bg-[var(--surface-container)] transition-all cursor-pointer"
-                data-testid="page-form-image-upload">
-                {isUploading ? <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> : <span className="material-symbols-outlined text-lg">upload</span>}
-                {isUploading ? 'Uploading...' : 'Upload Image'}
-              </label>
+              <Button variant="secondary" size="sm" onClick={() => setMediaOpen('featured')} data-testid="page-form-image-select">Browse</Button>
               {featuredImageUrl && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[var(--on-surface-variant)] truncate max-w-[120px]" data-testid="page-form-image-filename">{featuredImageUrl.split('/').pop()}</span>
-                  <button type="button" onClick={handleRemoveImage} className="text-xs text-red-500 hover:text-red-700" data-testid="page-form-image-remove">Remove</button>
+                  <button type="button" onClick={() => { setFeaturedImageId(null); setFeaturedImageUrl(''); markDirty() }} className="text-xs text-red-500 hover:text-red-700" data-testid="page-form-image-remove">Remove</button>
                 </div>
               )}
             </div>
@@ -302,6 +278,27 @@ export default function PageFormPage() {
           </Button>
         </div>
       </div>
+      {mediaOpen === 'featured' && (
+        <MediaManager
+          open={true}
+          onClose={() => setMediaOpen(null)}
+          onSelect={(file) => {
+            setFeaturedImageId(file.id)
+            setFeaturedImageUrl(file.url)
+            markDirty()
+          }}
+        />
+      )}
+      {mediaOpen === 'og' && (
+        <MediaManager
+          open={true}
+          onClose={() => setMediaOpen(null)}
+          onSelect={(file) => {
+            setOgImage(file.url)
+            markDirty()
+          }}
+        />
+      )}
     </main>
   )
 }

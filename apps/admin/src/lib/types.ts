@@ -140,6 +140,7 @@ export interface FileItem {
   mime_type: string
   size_bytes: number
   storage_path: string
+  url: string
   checksum_sha256: string
   uploaded_by: number | null
   is_public: boolean

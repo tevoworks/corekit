@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -132,6 +133,12 @@ func (h *Handler) Upload(c echo.Context) error {
 		return httputil.InternalError(c)
 	}
 
+	scheme := "http"
+	if c.Request().TLS != nil {
+		scheme = "https"
+	}
+	meta.URL = fmt.Sprintf("%s://%s/api/storage/files/%d", scheme, c.Request().Host, meta.ID)
+
 	return httputil.Created(c, meta)
 }
 
@@ -209,6 +216,15 @@ func (h *Handler) List(c echo.Context) error {
 	files, err := h.service.ListFiles(ctx, limit, cursor, actorID, isSuperAdmin)
 	if err != nil {
 		return httputil.InternalError(c)
+	}
+
+	scheme := "http"
+	if c.Request().TLS != nil {
+		scheme = "https"
+	}
+	baseURL := fmt.Sprintf("%s://%s", scheme, c.Request().Host)
+	for i := range files {
+		files[i].URL = fmt.Sprintf("%s/api/storage/files/%d", baseURL, files[i].ID)
 	}
 
 	nextCursor := int64(0)
