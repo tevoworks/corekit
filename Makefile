@@ -1,16 +1,19 @@
-.PHONY: dev dev-be dev-fe stop restart lint test test-e2e test-e2e-auth build docker-up docker-down \
+.PHONY: dev dev-be dev-fe dev-mkt stop restart lint test test-e2e test-e2e-auth build docker-up docker-down \
         logs db-reset migration-up migration-down migration-reset clean scaffold docker-build setup help
 
 BE_DIR    = backend
 FE_DIR    = apps/admin
+MK_DIR    = apps/marketing
 BE_PORT   = 8080
 FE_PORT   = 5173
+MK_PORT   = 3000
 
 dev: docker-up
 	@echo "── Starting all services ──"
 	@trap 'kill 0' EXIT; \
 		$(MAKE) dev-be & \
 		$(MAKE) dev-fe & \
+		$(MAKE) dev-mkt & \
 		wait
 
 dev-be:
@@ -18,13 +21,18 @@ dev-be:
 	@cd $(BE_DIR) && go run ./cmd/api
 
 dev-fe:
-	@echo "Starting frontend (port $(FE_PORT))..."
+	@echo "Starting admin (port $(FE_PORT))..."
 	@cd $(FE_DIR) && npm run dev
+
+dev-mkt:
+	@echo "Starting marketing (port $(MK_PORT))..."
+	@cd $(MK_DIR) && npm run dev
 
 stop:
 	@echo "── Stopping all services ──"
 	@-lsof -ti :$(BE_PORT) 2>/dev/null | xargs kill -15 2>/dev/null; sleep 10; lsof -ti :$(BE_PORT) 2>/dev/null | xargs kill -15 2>/dev/null || true
 	@-lsof -ti :$(FE_PORT) 2>/dev/null | xargs kill -15 2>/dev/null; sleep 10; lsof -ti :$(FE_PORT) 2>/dev/null | xargs kill -9 2>/dev/null || true
+	@-lsof -ti :$(MK_PORT) 2>/dev/null | xargs kill -15 2>/dev/null; sleep 10; lsof -ti :$(MK_PORT) 2>/dev/null | xargs kill -9 2>/dev/null || true
 	@-docker compose down 2>/dev/null || true
 	@echo "Done."
 
@@ -77,8 +85,10 @@ test-e2e-quick: build
 build:
 	@echo "── Building backend ──"
 	cd $(BE_DIR) && go build -o bin/api ./cmd/api
-	@echo "── Building frontend ──"
+	@echo "── Building admin ──"
 	cd $(FE_DIR) && npm run build
+	@echo "── Building marketing ──"
+	cd $(MK_DIR) && npm run build
 	@echo "Build complete."
 
 docker-build:
@@ -130,17 +140,18 @@ setup:
 clean:
 	@echo "── Cleaning ──"
 	rm -rf $(BE_DIR)/bin $(BE_DIR)/tmp
-	rm -rf $(FE_DIR)/dist $(FE_DIR)/node_modules .turbo node_modules
+	rm -rf $(FE_DIR)/dist $(FE_DIR)/node_modules $(MK_DIR)/.next $(MK_DIR)/node_modules .turbo node_modules
 	@echo "Done."
 
 help:
 	@echo "Usage:"
-	@echo "  make dev              Start backend + frontend (hot-reload)"
-	@echo "  make stop             Stop all services (backend, frontend, docker)"
+	@echo "  make dev              Start backend + admin + marketing + infra (hot-reload)"
+	@echo "  make stop             Stop all services (backend, admin, marketing, docker)"
 	@echo "  make restart          Stop then start"
-	@echo "  make dev-be           Start backend only"
-	@echo "  make dev-fe           Start frontend only"
-	@echo "  make build            Build production assets"
+	@echo "  make dev-be           Start backend only (port 8080)"
+	@echo "  make dev-fe           Start admin only (port 5173)"
+	@echo "  make dev-mkt          Start marketing only (port 3000)"
+	@echo "  make build            Build production assets (all apps)"
 	@echo "  make docker-build     Build Docker image"
 	@echo "  make lint             Check imports + go vet"
 	@echo "  make test             Run backend unit tests"
