@@ -4,7 +4,7 @@ import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import MediaManager from './MediaManager'
 
 interface RichTextEditorProps {
@@ -16,6 +16,9 @@ interface RichTextEditorProps {
 
 export default function RichTextEditor({ content, onChange, placeholder, testId }: RichTextEditorProps) {
   const [mediaOpen, setMediaOpen] = useState(false)
+  const [sourceMode, setSourceMode] = useState(false)
+  const [sourceHtml, setSourceHtml] = useState('')
+  const sourceTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const editor = useEditor({
     extensions: [
@@ -34,24 +37,47 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
       },
     },
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML())
+      if (!sourceMode) onChange(editor.getHTML())
     },
   })
+
+  const toggleSource = () => {
+    if (!editor) return
+    if (!sourceMode) {
+      setSourceHtml(editor.getHTML())
+      setSourceMode(true)
+    } else {
+      editor.commands.setContent(sourceHtml)
+      setSourceMode(false)
+      onChange(sourceHtml)
+    }
+  }
+
+  const handleSourceChange = (val: string) => {
+    setSourceHtml(val)
+    onChange(val)
+  }
+
+  useEffect(() => {
+    if (sourceMode && sourceTextareaRef.current) {
+      sourceTextareaRef.current.focus()
+    }
+  }, [sourceMode])
 
   if (!editor) return null
 
   const Btn = ({ onClick, active, label, title, testId }: {
-    onClick: () => void; active?: boolean; label: string; title?: string; testId: string
+    onClick: () => void; active?: boolean; label: string | React.ReactNode; title?: string; testId: string
   }) => (
     <button type="button" onClick={onClick} title={title}
-      className={`px-1.5 py-1 text-xs font-medium rounded hover:bg-zinc-100 transition-colors leading-none
+      className={`px-1.5 py-1 text-xs font-medium rounded hover:bg-zinc-100 transition-colors leading-none whitespace-nowrap
         ${active ? 'bg-zinc-200 text-zinc-900' : 'text-zinc-600'}`}
       data-testid={testId}>
       {label}
     </button>
   )
 
-  const Divider = () => <span className="w-px h-4 bg-zinc-300 mx-0.5" />
+  const Divider = () => <span className="w-px h-4 bg-zinc-300 mx-0.5 shrink-0" />
 
   return (
     <div className="border border-zinc-300 rounded-lg overflow-hidden" data-testid={testId}>
@@ -98,8 +124,26 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
         <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} label="—" title="Horizontal rule" testId="editor-hr" />
 
         <Btn onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()} label="⌫" title="Clear formatting" testId="editor-clear" />
+
+        <Divider />
+
+        <Btn onClick={toggleSource} active={sourceMode} label="&lt;/&gt;" title="Toggle source editor" testId="editor-source" />
       </div>
-      <EditorContent editor={editor} />
+
+      {sourceMode ? (
+        <textarea
+          ref={sourceTextareaRef}
+          value={sourceHtml}
+          onChange={e => handleSourceChange(e.target.value)}
+          className="w-full min-h-[200px] p-4 text-sm font-mono bg-zinc-900 text-zinc-100 border-0 outline-none resize-y"
+          data-testid="editor-source-textarea"
+          placeholder="<p>HTML content...</p>"
+          spellCheck={false}
+        />
+      ) : (
+        <EditorContent editor={editor} />
+      )}
+
       <MediaManager
         open={mediaOpen}
         onClose={() => setMediaOpen(false)}
