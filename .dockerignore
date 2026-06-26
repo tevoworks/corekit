@@ -3,7 +3,8 @@
 .env
 .env*
 node_modules
-frontend
+apps
+packages
 docs
 scripts
 *.md

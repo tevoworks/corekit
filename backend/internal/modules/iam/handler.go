@@ -25,6 +25,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/tevoworks/corekit/backend/internal/middleware"
+	"github.com/tevoworks/corekit/backend/internal/modules/settings"
 	"github.com/tevoworks/corekit/backend/internal/validation"
 	"github.com/tevoworks/corekit/backend/pkg/httputil"
 )
@@ -124,6 +125,7 @@ func (h *Handler) consumeOAuthCode(code string) (oauthCode, bool) {
 type Handler struct {
 	service            Service
 	rbacVerifier       middleware.RBACVerifier
+	settingsService    settings.Service
 	db                 *sql.DB
 	jwtSecret          string
 	appEnv             string
@@ -161,7 +163,7 @@ func (h *Handler) clearTokenCookie(c echo.Context) {
 	})
 }
 
-func NewHandler(s Service, rbacVerifier middleware.RBACVerifier, db *sql.DB, jwtSecret string, appEnv string, googleClientID, googleClientSecret, googleRedirectURL, frontendURL string, redisURL string) *Handler {
+func NewHandler(s Service, rbacVerifier middleware.RBACVerifier, settingsSvc settings.Service, db *sql.DB, jwtSecret string, appEnv string, googleClientID, googleClientSecret, googleRedirectURL, frontendURL string, redisURL string) *Handler {
 	var rdb *redis.Client
 	if redisURL != "" {
 		if opts, err := redis.ParseURL(redisURL); err == nil {
@@ -172,6 +174,7 @@ func NewHandler(s Service, rbacVerifier middleware.RBACVerifier, db *sql.DB, jwt
 	return &Handler{
 		service:            s,
 		rbacVerifier:       rbacVerifier,
+		settingsService:    settingsSvc,
 		db:                 db,
 		jwtSecret:          jwtSecret,
 		appEnv:             appEnv,
@@ -260,14 +263,17 @@ type LoginRequest struct {
 func (h *Handler) Register(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	// Only allow registration when no users exist (first-time setup)
+	// Allow registration if: no users exist (first-time setup) OR public_registration is enabled
 	var count int
 	if err := h.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
 		slog.Error("failed to check existing users count", "error", err)
 		return httputil.InternalError(c)
 	}
 	if count > 0 {
-		return httputil.Forbidden(c, "Registration is closed")
+		setting, err := h.settingsService.GetSetting(ctx, "public_registration")
+		if err != nil || setting == nil || setting.Value != "true" {
+			return httputil.Forbidden(c, "Registration is closed")
+		}
 	}
 
 	var req RegisterRequest

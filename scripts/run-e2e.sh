@@ -6,7 +6,7 @@
 set -euo pipefail
 
 BE_DIR="$(cd "$(dirname "$0")/../backend" && pwd)"
-FE_DIR="$(cd "$(dirname "$0")/../frontend" && pwd)"
+FE_DIR="$(cd "$(dirname "$0")/../apps/admin" && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 echo "═══ E2E Test Runner ═══"

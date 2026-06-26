@@ -2,7 +2,7 @@
         logs db-reset migration-up migration-down migration-reset clean scaffold docker-build setup help
 
 BE_DIR    = backend
-FE_DIR    = frontend
+FE_DIR    = apps/admin
 BE_PORT   = 8080
 FE_PORT   = 5173
 
@@ -53,11 +53,11 @@ test-e2e-auth:
 	@sleep 1
 	@cp backend/bin/api /tmp/corekit-api 2>/dev/null || true
 	@cd backend && bash -c 'trap "" TERM; exec nohup /tmp/corekit-api' > /tmp/be-e2e.log 2>&1 &
-	@cd frontend && bash -c 'trap "" TERM; exec nohup npx vite preview --port 5173 --strictPort' > /tmp/fe-e2e.log 2>&1 &
+	@cd $(FE_DIR) && bash -c 'trap "" TERM; exec nohup npx vite preview --port 5173 --strictPort' > /tmp/fe-e2e.log 2>&1 &
 	@sleep 6
 	@PGPASSWORD=postgres psql -h localhost -p 5434 -U postgres -d corekit -c "DELETE FROM users WHERE email NOT IN ('admin@corekit.com','viewer@test.corekit','manager@test.corekit');" 2>/dev/null || true
 	@bash scripts/setup-e2e-users.sh
-	@rm -f frontend/e2e/.auth/*.json
+	@rm -f $(FE_DIR)/e2e/.auth/*.json
 	@cd $(FE_DIR) && npx playwright test --project=auth --project=setup --reporter=line || true
 	@kill -9 $$(lsof -ti :5173 2>/dev/null) 2>/dev/null || true
 	@kill -9 $$(lsof -ti :8080 2>/dev/null) 2>/dev/null || true
@@ -69,8 +69,8 @@ test-e2e-quick: build
 	@cd backend && bash -c 'trap "" TERM; exec nohup /tmp/corekit-api' > /tmp/be-e2e.log 2>&1 &
 	@sleep 6
 	@bash scripts/setup-e2e-users.sh
-	@rm -f frontend/e2e/.auth/*.json
-	@cd frontend && npx playwright test --project=auth --project=setup --project=admin --project=viewer --project=manager --reporter=line || true
+	@rm -f $(FE_DIR)/e2e/.auth/*.json
+	@cd $(FE_DIR) && npx playwright test --project=auth --project=setup --project=admin --project=viewer --project=manager --reporter=line || true
 	@kill -9 $$(lsof -ti :5173 2>/dev/null) 2>/dev/null || true
 	@kill -9 $$(lsof -ti :8080 2>/dev/null) 2>/dev/null || true
 
@@ -130,7 +130,7 @@ setup:
 clean:
 	@echo "── Cleaning ──"
 	rm -rf $(BE_DIR)/bin $(BE_DIR)/tmp
-	rm -rf $(FE_DIR)/dist $(FE_DIR)/node_modules
+	rm -rf $(FE_DIR)/dist $(FE_DIR)/node_modules .turbo node_modules
 	@echo "Done."
 
 help:

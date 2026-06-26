@@ -49,12 +49,22 @@ coverage/
 coverage.out
 coverage.html
 
-# ── Node / Frontend ──
+# ── Turbo / Apps ──
+apps/*/node_modules/
+apps/*/dist/
+apps/*/.next/
+apps/*/.vite/
+apps/*/.cache/
+apps/*/playwright-report/
+apps/*/test-results/
+apps/*/e2e/.auth/
+
+packages/*/node_modules/
+packages/*/dist/
+
 node_modules/
-frontend/dist/
-frontend/build/
-frontend/.vite/
-frontend/.cache/
+.cache/
+.next/
 *.tsbuildinfo
 .eslintcache
 
@@ -67,12 +77,6 @@ redis-data/
 *.tar
 *.zip
 tmp/
-.cache/
-
-# ── E2E / Test artifacts ──
-frontend/e2e/.auth/
-frontend/playwright-report/
-frontend/test-results/
 
 # ── Package manager locks (use npm only) ──
 pnpm-lock.yaml

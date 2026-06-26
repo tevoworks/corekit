@@ -81,13 +81,13 @@ func NewContainer(cfg *config.Config) *Container {
 	authVerifySvc := authverify.NewService(db, cfg.JWTSecret, cache, revStore)
 	authVerifyH := authverify.NewHandler(authVerifySvc)
 
-	iamRepo := iam.NewRepository(db)
-	iamSvc := iam.NewService(db, iamRepo, cfg.JWTSecret, auditSvc, revStore, queueRepo, eventDispatcher, cache, cfg.FrontendURL)
-	iamH := iam.NewHandler(iamSvc, rbacSvc, db, cfg.JWTSecret, cfg.AppEnv, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL, cfg.FrontendURL, cfg.RedisURL)
-
 	settingsRepo := settings.NewRepository(db)
 	settingsSvc := settings.NewService(db, settingsRepo, auditSvc)
 	settingsH := settings.NewHandler(settingsSvc, rbacSvc)
+
+	iamRepo := iam.NewRepository(db)
+	iamSvc := iam.NewService(db, iamRepo, cfg.JWTSecret, auditSvc, revStore, queueRepo, eventDispatcher, cache, cfg.FrontendURL)
+	iamH := iam.NewHandler(iamSvc, rbacSvc, settingsSvc, db, cfg.JWTSecret, cfg.AppEnv, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL, cfg.FrontendURL, cfg.RedisURL)
 
 	storageRepo := storagepkg.NewRepository(db)
 	storageProvider, err := storagepkg.NewS3StorageProvider(cfg.S3Endpoint, cfg.S3Region, cfg.S3Bucket, cfg.S3AccessKey, cfg.S3SecretKey)

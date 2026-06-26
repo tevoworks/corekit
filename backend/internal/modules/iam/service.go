@@ -162,11 +162,11 @@ func (s *service) Register(ctx context.Context, email, password, fullName string
 		u.IsSuperAdmin = isFirst
 
 		if !isFirst {
-			var viewerRoleID *int64
+			var customerRoleID *int64
 			database.GetQueryer(txCtx, s.db).QueryRowContext(txCtx,
-				`SELECT id FROM roles WHERE name = 'viewer' LIMIT 1`).Scan(&viewerRoleID)
-			if viewerRoleID != nil {
-				u.RoleID = viewerRoleID
+				`SELECT id FROM roles WHERE name = 'customer' LIMIT 1`).Scan(&customerRoleID)
+			if customerRoleID != nil {
+				u.RoleID = customerRoleID
 			}
 		}
 

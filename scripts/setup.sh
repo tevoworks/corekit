@@ -23,9 +23,9 @@ if [ ! -f backend/.env ]; then
 fi
 
 # Install frontend deps
-if [ -f frontend/package.json ]; then
+if [ -f apps/admin/package.json ]; then
   echo "Installing frontend dependencies..."
-  (cd frontend && npm install)
+  (cd apps/admin && npm install)
 fi
 
 # Start infrastructure
