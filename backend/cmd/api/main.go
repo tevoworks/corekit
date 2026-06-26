@@ -73,7 +73,7 @@ func main() {
 		ExposeHeaders:    []string{"X-Request-ID"},
 		AllowCredentials: true,
 	}))
-	e.Use(appMiddleware.SecurityHeadersMiddleware(cfg.AppEnv))
+	e.Use(appMiddleware.SecurityHeadersMiddleware(cfg.AppEnv, cfg.AllowedOrigins))
 	e.Use(appMiddleware.CSRFMiddleware(cfg.AllowedOrigins, cfg.CSRFEnabled))
 	e.Use(echomw.BodyLimit("10M"))
 

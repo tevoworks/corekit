@@ -22,17 +22,35 @@ func generateCSPNonce() string {
 	return hex.EncodeToString(b)
 }
 
-func SecurityHeadersMiddleware(appEnv string) echo.MiddlewareFunc {
+func SecurityHeadersMiddleware(appEnv string, allowedOrigins []string) echo.MiddlewareFunc {
+	imgSrc := "'self' data:"
+	connectSrc := "'self'"
+	for _, origin := range allowedOrigins {
+		origin = strings.TrimRight(origin, "/")
+		if origin != "" {
+			imgSrc += " " + origin
+			connectSrc += " " + origin
+		}
+	}
+
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			nonce := generateCSPNonce()
 			c.Set(CSPNonceKey, nonce)
 
+			// Add the API server's own origin to img/connect-src for admin SPA compatibility
+			scheme := "http"
+			if c.Request().TLS != nil {
+				scheme = "https"
+			}
+			apiOrigin := fmt.Sprintf("%s://%s", scheme, c.Request().Host)
+
 			c.Response().Header().Set("X-Content-Type-Options", "nosniff")
 			c.Response().Header().Set("X-Frame-Options", "DENY")
 			c.Response().Header().Set("X-XSS-Protection", "0")
 			c.Response().Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-			csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; frame-ancestors 'none'", nonce)
+			csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src %s %s; font-src 'self' https://fonts.gstatic.com; connect-src %s %s; frame-ancestors 'none'",
+				nonce, imgSrc, apiOrigin, connectSrc, apiOrigin)
 			c.Response().Header().Set("Content-Security-Policy", csp)
 			c.Response().Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 

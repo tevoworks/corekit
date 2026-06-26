@@ -15,7 +15,7 @@ func TestSecurityHeadersCSPNonce(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	mw := SecurityHeadersMiddleware("development")
+	mw := SecurityHeadersMiddleware("development", nil)
 	handler := mw(func(c echo.Context) error {
 		nonce := GetCSPNonce(c)
 		if nonce == "" {
@@ -60,7 +60,7 @@ func TestSecurityHeadersCSPNonceUniquePerRequest(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		mw := SecurityHeadersMiddleware("development")
+	mw := SecurityHeadersMiddleware("development", nil)
 		handler := mw(func(c echo.Context) error {
 			nonces = append(nonces, GetCSPNonce(c))
 			return c.String(http.StatusOK, "ok")
@@ -79,7 +79,7 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	mw := SecurityHeadersMiddleware("production")
+	mw := SecurityHeadersMiddleware("production", nil)
 	handler := mw(func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
@@ -123,7 +123,7 @@ func TestSecurityHeadersHSTS(t *testing.T) {
 			rec := httptest.NewRecorder()
 			c := e.NewContext(req, rec)
 
-			mw := SecurityHeadersMiddleware(tt.env)
+			mw := SecurityHeadersMiddleware(tt.env, nil)
 			handler := mw(func(c echo.Context) error {
 				return c.String(http.StatusOK, "ok")
 			})
