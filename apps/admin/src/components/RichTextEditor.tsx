@@ -2,6 +2,8 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
+import { useRef, useState, useCallback } from 'react'
+import api from '../lib/api'
 
 interface RichTextEditorProps {
   content: string
@@ -11,6 +13,9 @@ interface RichTextEditorProps {
 }
 
 export default function RichTextEditor({ content, onChange, placeholder, testId }: RichTextEditorProps) {
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -27,6 +32,27 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
       onChange(editor.getHTML())
     },
   })
+
+  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editor) return
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post('/api/storage/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      const fileData = res.data.data
+      const url = fileData.url || `/api/storage/files/${fileData.id}`
+      editor.chain().focus().setImage({ src: url }).run()
+    } catch (err) {
+      console.error('Image upload failed', err)
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }, [editor])
 
   if (!editor) return null
 
@@ -55,12 +81,17 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
           const url = window.prompt('Link URL:')
           if (url) editor.chain().focus().setLink({ href: url }).run()
         }} active={editor.isActive('link')} label="Link" testId="editor-link" />
-        <ToolbarButton onClick={() => {
-          const url = window.prompt('Image URL:')
-          if (url) editor.chain().focus().setImage({ src: url }).run()
-        }} label="Img" testId="editor-image" />
+        <ToolbarButton onClick={() => fileInputRef.current?.click()} label={uploading ? '...' : 'Img'} testId="editor-image" />
       </div>
       <EditorContent editor={editor} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        className="hidden"
+        data-testid="editor-image-input"
+      />
     </div>
   )
 }
