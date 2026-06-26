@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{.Title}}</title>
+  <style>
+    body {
+      background-color: #f4f7fa;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      width: 100% !important;
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+    }
+    table {
+      border-collapse: collapse;
+      mso-table-lspace: 0pt;
+      mso-table-rspace: 0pt;
+    }
+    img {
+      border: 0;
+      height: auto;
+      line-height: 100%;
+      outline: none;
+      text-decoration: none;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #f4f7fa;
+      padding-bottom: 40px;
+      padding-top: 40px;
+    }
+    .main-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      border: 1px solid #eef2f6;
+    }
+    .header {
+      background-color: #004ac6;
+      padding: 32px 40px;
+      text-align: center;
+    }
+    .header h1 {
+      color: #ffffff;
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.5px;
+    }
+    .content {
+      padding: 40px 40px 30px 40px;
+    }
+    .content h2 {
+      color: #1e293b;
+      font-size: 20px;
+      font-weight: 600;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+    .content p {
+      color: #475569;
+      font-size: 16px;
+      line-height: 1.6;
+      margin-top: 0;
+      margin-bottom: 24px;
+    }
+    .btn-container {
+      text-align: center;
+      margin-top: 32px;
+      margin-bottom: 32px;
+    }
+    .btn {
+      background-color: #004ac6;
+      border-radius: 8px;
+      color: #ffffff !important;
+      display: inline-block;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 48px;
+      text-align: center;
+      text-decoration: none;
+      width: 220px;
+      -webkit-text-size-adjust: none;
+      mso-hide: all;
+      box-shadow: 0 4px 6px rgba(0, 74, 198, 0.15);
+      transition: background-color 0.2s ease;
+    }
+    .btn:hover {
+      background-color: #003da3;
+    }
+    .footer {
+      background-color: #f8fafc;
+      padding: 24px 40px;
+      text-align: center;
+      border-top: 1px solid #f1f5f9;
+    }
+    .footer p {
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 0;
+    }
+    .footer a {
+      color: #004ac6;
+      text-decoration: none;
+    }
+    @media only screen and (max-width: 600px) {
+      .content {
+        padding: 30px 24px 20px 24px;
+      }
+      .header {
+        padding: 24px 20px;
+      }
+      .footer {
+        padding: 20px 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <center class="wrapper">
+    <table class="main-container" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+      <!-- HEADER -->
+      <tr>
+        <td class="header">
+          <h1>CoreKit</h1>
+        </td>
+      </tr>
+      <!-- CONTENT -->
+      <tr>
+        <td class="content">
+          <h2>{{.Heading}}</h2>
+          <p>{{.Message}}</p>
+          {{if .ButtonURL}}
+          <table class="btn-container" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+            <tr>
+              <td align="center">
+                <a href="{{.ButtonURL}}" class="btn" target="_blank">{{.ButtonText}}</a>
+              </td>
+            </tr>
+          </table>
+          {{end}}
+          {{if .ButtonURL}}
+          <p style="font-size: 14px; color: #64748b; margin-bottom: 0;">
+            If the button doesn't work, copy and paste this link into your browser: <br>
+            <a href="{{.ButtonURL}}" style="color: #004ac6; word-break: break-all;">{{.ButtonURL}}</a>
+          </p>
+          {{end}}
+        </td>
+      </tr>
+      <!-- FOOTER -->
+      <tr>
+        <td class="footer">
+          <p>This is an automated message from CoreKit. Please do not reply directly to this email.</p>
+          <p style="margin-top: 8px;">&copy; 2026 CoreKit. All rights reserved.</p>
+        </td>
+      </tr>
+    </table>
+  </center>
+</body>
+</html>

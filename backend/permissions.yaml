@@ -1,0 +1,112 @@
+# permissions.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Service Registration Pattern — CoreKit Permission Registry
+#
+# Each domain service defines its permissions here.
+# On startup, the permregistry module reads this file and upserts every entry
+# into the permission_registry table. The Admin UI then auto-discovers them.
+#
+# Format:
+#   <domain>:
+#     - name: <permission_name>          # e.g. "payment:create"
+#       description: <short description>
+#
+# Convention: "<domain>:<verb>"  — verb is one of: create, read, update, delete,
+#             manage, export, import, approve, refund, send, cancel, list
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core Platform ──────────────────────────────────────────────────────────────
+identity:
+  - name: read:users
+    description: View system users
+  - name: manage:users
+    description: Invite and remove system users
+
+roles:
+  - name: read:roles
+    description: View roles
+  - name: manage:roles
+    description: Create, edit, and delete roles
+
+permissions:
+  - name: read:permissions
+    description: View permissions
+  - name: manage:permissions
+    description: Create, edit, and delete permissions
+  - name: manage:role_permissions
+    description: Assign or revoke permissions on roles
+
+audit:
+  - name: read:audit_logs
+    description: View audit log entries
+
+settings:
+  - name: manage:settings
+    description: Change system settings and branding
+  - name: read:settings
+    description: View system settings
+
+feature-flags:
+  - name: read:feature_flags
+    description: View feature flags
+  - name: manage:feature_flags
+    description: Create, enable, and disable feature flags
+
+storage:
+  - name: read:files
+    description: View and download files
+  - name: write:files
+    description: Upload new files
+  - name: manage:files
+    description: Upload and modify files
+  - name: delete:files
+    description: Permanently delete files
+
+api-keys:
+  - name: read:api_keys
+    description: View API keys
+  - name: manage:api_keys
+    description: Create and revoke API keys
+
+sessions:
+  - name: read:sessions
+    description: View active sessions
+
+# ── Example Domain Services ───────────────────────────────────────────────────
+# Uncomment and extend when you add these features to CoreKit.
+
+# payment:
+#   - name: payment:create
+#     description: Initiate a new payment
+#   - name: payment:read
+#     description: View payment records
+#   - name: payment:refund
+#     description: Issue a refund for a payment
+#   - name: payment:cancel
+#     description: Cancel a pending payment
+
+# invoicing:
+#   - name: invoice:create
+#     description: Create and draft invoices
+#   - name: invoice:read
+#     description: View invoice records
+#   - name: invoice:send
+#     description: Send invoices to customers
+#   - name: invoice:delete
+#     description: Delete draft invoices
+
+# crm:
+#   - name: lead:create
+#     description: Create new sales leads
+#   - name: lead:read
+#     description: View leads and contacts
+#   - name: lead:update
+#     description: Edit lead information
+#   - name: lead:delete
+#     description: Delete leads
+
+# reporting:
+#   - name: report:read
+#     description: View analytics and reports
+#   - name: report:export
+#     description: Export report data to CSV/PDF

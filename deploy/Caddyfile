@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# CoreKit — Caddy reverse proxy with automatic TLS
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   caddy run --config Caddyfile
+# Or in docker:
+#   docker compose -f docker-compose.prod.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+yourdomain.com {
+    # ── TLS via Let's Encrypt (auto) ──
+    tls {
+        protocols tls1.3
+    }
+
+    # ── Security headers ──
+    header {
+        # HSTS (1 year, include subdomains, preload)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        # Block clickjacking
+        X-Frame-Options "DENY"
+        # Prevent MIME sniffing
+        X-Content-Type-Options "nosniff"
+        # Referrer policy
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Permissions policy
+        Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+        # CSP
+        Content-Security-Policy "
+            default-src 'self';
+            script-src 'self';
+            style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+            font-src 'self' https://fonts.gstatic.com;
+            img-src 'self' data:;
+            connect-src 'self';
+            frame-ancestors 'none';
+            base-uri 'self';
+            form-action 'self';
+        "
+    }
+
+    # ── Frontend (SPA) ──
+    root * /app/frontend
+    try_files {path} /index.html
+
+    # ── Backend API proxy ──
+    handle_path /api/* {
+        reverse_proxy backend:8080 {
+            # Pass original client IP
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
+    # ── Health check ──
+    handle /health {
+        reverse_proxy backend:8080
+    }
+
+    # ── Static files cache ──
+    header /assets/* {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+
+    # ── Logs ──
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
+
+# ── Staging/dev override ──
+# For local development with TLS on localhost, use:
+#   yourdomain.com {
+#       tls internal
+#       ...
+#   }

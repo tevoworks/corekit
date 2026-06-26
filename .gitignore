@@ -1,0 +1,85 @@
+# ── OS ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.orig
+
+# ── IDE / Editor ──
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.project
+.classpath
+.settings/
+
+# ── Env (sensitive) ──
+.env
+.env.*
+!.env.example
+!.env.production.example
+
+# ── Secrets / Credentials ──
+*.key
+*.pem
+*.p12
+*.pfx
+*.cert
+*.secret
+service-account.json
+credentials.json
+
+# ── Go (backend) ──
+backend/bin/
+backend/tmp/
+backend/cli
+backend/api
+backend/check-imports
+*.exe
+*.test
+*.out
+*.test.exe
+vendor/
+
+# ── Test coverage ──
+coverage/
+coverage.out
+coverage.html
+
+# ── Node / Frontend ──
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+*.tsbuildinfo
+.eslintcache
+
+# ── Docker (local volumes) ──
+pgdata/
+miniodata/
+redis-data/
+
+# ── Build artifacts ──
+*.tar
+*.zip
+tmp/
+.cache/
+
+# ── E2E / Test artifacts ──
+frontend/e2e/.auth/
+frontend/playwright-report/
+frontend/test-results/
+
+# ── Package manager locks (use npm only) ──
+pnpm-lock.yaml
+yarn.lock
+
+# ── Logs / Debug ──
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

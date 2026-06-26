@@ -1,0 +1,29 @@
+linters:
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - ineffassign
+    - misspell
+    - revive
+    - gosec
+    - bodyclose
+    - sqlclosecheck
+    - noctx
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+issues:
+  exclude-dirs:
+    - vendor
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+
+output:
+  formats: colored-line-number
