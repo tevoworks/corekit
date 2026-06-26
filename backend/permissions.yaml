@@ -110,3 +110,15 @@ sessions:
 #     description: View analytics and reports
 #   - name: report:export
 #     description: Export report data to CSV/PDF
+
+cms:
+  - name: read:cms
+    description: View CMS content
+  - name: manage:cms
+    description: Create, edit, publish, delete CMS content
+
+contact:
+  - name: read:contacts
+    description: View contact messages and subscribers
+  - name: manage:contacts
+    description: Manage contact messages and subscribers

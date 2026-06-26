@@ -10,6 +10,8 @@ import (
 	"github.com/tevoworks/corekit/backend/internal/middleware"
 	"github.com/tevoworks/corekit/backend/internal/modules/apikey"
 	"github.com/tevoworks/corekit/backend/internal/modules/audit"
+	"github.com/tevoworks/corekit/backend/internal/modules/cms"
+	"github.com/tevoworks/corekit/backend/internal/modules/contact"
 	"github.com/tevoworks/corekit/backend/internal/modules/iam"
 	"github.com/tevoworks/corekit/backend/internal/modules/permregistry"
 	"github.com/tevoworks/corekit/backend/internal/modules/queue"
@@ -31,6 +33,8 @@ type Container struct {
 	IAMSvc        iam.Service
 	SettingsSvc   settings.Service
 	StorageSvc    storagepkg.Service
+	CMSSvc        cms.Service
+	ContactSvc    contact.Service
 	APIKeySvc     apikey.Service
 	WebhookSvc    webhook.Service
 	PermRegSvc    permregistry.Service
@@ -41,6 +45,8 @@ type Container struct {
 	IAMH        *iam.Handler
 	SettingsH   *settings.Handler
 	StorageH    *storagepkg.Handler
+	CMSH        *cms.Handler
+	ContactH    *contact.Handler
 	APIKeyH     *apikey.Handler
 	WebhookH    *webhook.Handler
 	PermRegH    *permregistry.Handler
@@ -85,6 +91,14 @@ func NewContainer(cfg *config.Config) *Container {
 	settingsSvc := settings.NewService(db, settingsRepo, auditSvc)
 	settingsH := settings.NewHandler(settingsSvc, rbacSvc)
 
+	cmsRepo := cms.NewRepository(db)
+	cmsSvc := cms.NewService(db, cmsRepo, auditSvc)
+	cmsH := cms.NewHandler(cmsSvc, rbacSvc)
+
+	contactRepo := contact.NewRepository(db)
+	contactSvc := contact.NewService(db, contactRepo, auditSvc)
+	contactH := contact.NewHandler(contactSvc, rbacSvc)
+
 	iamRepo := iam.NewRepository(db)
 	iamSvc := iam.NewService(db, iamRepo, cfg.JWTSecret, auditSvc, revStore, queueRepo, eventDispatcher, cache, cfg.FrontendURL)
 	iamH := iam.NewHandler(iamSvc, rbacSvc, settingsSvc, db, cfg.JWTSecret, cfg.AppEnv, cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL, cfg.FrontendURL, cfg.RedisURL)
@@ -120,6 +134,8 @@ func NewContainer(cfg *config.Config) *Container {
 		IAMSvc:          iamSvc,
 		SettingsSvc:     settingsSvc,
 		StorageSvc:      storageSvc,
+		CMSSvc:          cmsSvc,
+		ContactSvc:      contactSvc,
 		APIKeySvc:       apikeySvc,
 		WebhookSvc:      webhookSvc,
 		PermRegSvc:      permRegSvc,
@@ -129,6 +145,8 @@ func NewContainer(cfg *config.Config) *Container {
 		IAMH:            iamH,
 		SettingsH:       settingsH,
 		StorageH:        storageH,
+		CMSH:            cmsH,
+		ContactH:        contactH,
 		APIKeyH:         apikeyH,
 		WebhookH:        webhookH,
 		PermRegH:        permRegH,

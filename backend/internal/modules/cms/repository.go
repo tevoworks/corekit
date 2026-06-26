@@ -11,36 +11,32 @@ import (
 )
 
 type Repository interface {
-	// Pages
-	CreatePage(ctx context.Context, page *Page) error
+	CreatePage(ctx context.Context, p *Page) error
 	GetPageByID(ctx context.Context, id int64) (*Page, error)
 	GetPageBySlug(ctx context.Context, slug string) (*Page, error)
-	ListPages(ctx context.Context, limit int, cursor int64) ([]Page, error)
+	ListPages(ctx context.Context, limit int, cursor int64, status string) ([]Page, error)
 	ListPublishedPages(ctx context.Context, limit int, cursor int64) ([]Page, error)
-	UpdatePage(ctx context.Context, page *Page) error
+	UpdatePage(ctx context.Context, p *Page) error
 	DeletePage(ctx context.Context, id int64) error
 	PublishPage(ctx context.Context, id int64) error
 	UnpublishPage(ctx context.Context, id int64) error
 
-	// Blog Posts
-	CreateBlogPost(ctx context.Context, post *BlogPost) error
-	GetBlogPostByID(ctx context.Context, id int64) (*BlogPost, error)
-	GetBlogPostBySlug(ctx context.Context, slug string) (*BlogPost, error)
-	ListBlogPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error)
-	ListPublishedBlogPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error)
-	UpdateBlogPost(ctx context.Context, post *BlogPost) error
-	DeleteBlogPost(ctx context.Context, id int64) error
-	PublishBlogPost(ctx context.Context, id int64) error
-	UnpublishBlogPost(ctx context.Context, id int64) error
-	IncrementViewCount(ctx context.Context, id int64) error
+	CreatePost(ctx context.Context, p *BlogPost) error
+	GetPostByID(ctx context.Context, id int64) (*BlogPost, error)
+	GetPostBySlug(ctx context.Context, slug string) (*BlogPost, error)
+	ListPosts(ctx context.Context, limit int, cursor int64, status string) ([]BlogPost, error)
+	ListPublishedPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error)
+	UpdatePost(ctx context.Context, p *BlogPost) error
+	DeletePost(ctx context.Context, id int64) error
+	PublishPost(ctx context.Context, id int64) error
+	UnpublishPost(ctx context.Context, id int64) error
+	IncrementPostViewCount(ctx context.Context, id int64) error
 
-	// Page Sections
-	CreatePageSection(ctx context.Context, section *PageSection) error
-	ListPageSectionsByPageID(ctx context.Context, pageID int64) ([]PageSection, error)
-	GetPageSectionByID(ctx context.Context, id int64) (*PageSection, error)
-	UpdatePageSection(ctx context.Context, section *PageSection) error
-	DeletePageSection(ctx context.Context, id int64) error
-	DeletePageSectionsByPageID(ctx context.Context, pageID int64) error
+	CreateSection(ctx context.Context, s *PageSection) error
+	ListSectionsByPageID(ctx context.Context, pageID int64) ([]PageSection, error)
+	GetSectionByID(ctx context.Context, id int64) (*PageSection, error)
+	UpdateSection(ctx context.Context, s *PageSection) error
+	DeleteSection(ctx context.Context, id int64) error
 }
 
 type pgRepository struct {
@@ -52,10 +48,8 @@ func NewRepository(db *sql.DB) Repository {
 }
 
 const pageColumns = `id, title, slug, content, meta_description, featured_image, status, published_at, created_by, created_at, updated_at, deleted_at`
-const blogPostColumns = `id, title, slug, content, excerpt, featured_image, author_id, status, published_at, tags, view_count, created_at, updated_at, deleted_at`
-const pageSectionColumns = `id, page_id, type, title, content, sort_order, created_at, updated_at`
-
-// --- Pages ---
+const postColumns = `id, title, slug, content, excerpt, featured_image, author_id, status, published_at, tags, view_count, created_at, updated_at, deleted_at`
+const sectionColumns = `id, page_id, type, title, content, sort_order, created_at, updated_at`
 
 func scanPage(sc interface{ Scan(dest ...interface{}) error }) (Page, error) {
 	var p Page
@@ -66,14 +60,48 @@ func scanPage(sc interface{ Scan(dest ...interface{}) error }) (Page, error) {
 	return p, err
 }
 
-func (r *pgRepository) CreatePage(ctx context.Context, page *Page) error {
+func scanPost(sc interface{ Scan(dest ...interface{}) error }) (BlogPost, error) {
+	var bp BlogPost
+	err := sc.Scan(
+		&bp.ID, &bp.Title, &bp.Slug, &bp.Content, &bp.Excerpt, &bp.FeaturedImage,
+		&bp.AuthorID, &bp.Status, &bp.PublishedAt, pq.Array(&bp.Tags),
+		&bp.ViewCount, &bp.CreatedAt, &bp.UpdatedAt, &bp.DeletedAt,
+	)
+	if err != nil {
+		return bp, err
+	}
+	if bp.Tags == nil {
+		bp.Tags = []string{}
+	}
+	return bp, nil
+}
+
+func scanSection(sc interface{ Scan(dest ...interface{}) error }) (PageSection, error) {
+	var ps PageSection
+	var contentBytes []byte
+	err := sc.Scan(
+		&ps.ID, &ps.PageID, &ps.Type, &ps.Title,
+		&contentBytes, &ps.SortOrder, &ps.CreatedAt, &ps.UpdatedAt,
+	)
+	if err != nil {
+		return ps, err
+	}
+	if contentBytes != nil {
+		ps.Content = json.RawMessage(contentBytes)
+	}
+	return ps, nil
+}
+
+// --- Pages ---
+
+func (r *pgRepository) CreatePage(ctx context.Context, p *Page) error {
 	q := database.GetQueryer(ctx, r.db)
 	return q.QueryRowContext(ctx,
 		`INSERT INTO cms_pages (title, slug, content, meta_description, featured_image, status, created_by)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7)
 		 RETURNING id, created_at, updated_at`,
-		page.Title, page.Slug, page.Content, page.MetaDescription, page.FeaturedImage, page.Status, page.CreatedBy,
-	).Scan(&page.ID, &page.CreatedAt, &page.UpdatedAt)
+		p.Title, p.Slug, p.Content, p.MetaDescription, p.FeaturedImage, p.Status, p.CreatedBy,
+	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
 func (r *pgRepository) GetPageByID(ctx context.Context, id int64) (*Page, error) {
@@ -104,11 +132,11 @@ func (r *pgRepository) GetPageBySlug(ctx context.Context, slug string) (*Page, e
 	return &p, nil
 }
 
-func (r *pgRepository) ListPages(ctx context.Context, limit int, cursor int64) ([]Page, error) {
+func (r *pgRepository) ListPages(ctx context.Context, limit int, cursor int64, status string) ([]Page, error) {
 	q := database.GetQueryer(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT `+pageColumns+` FROM cms_pages WHERE id > $2 AND deleted_at IS NULL ORDER BY id ASC LIMIT $1`,
-		limit, cursor,
+		`SELECT `+pageColumns+` FROM cms_pages WHERE id > $2 AND deleted_at IS NULL AND ($3 = '' OR status = $3) ORDER BY id ASC LIMIT $1`,
+		limit, cursor, status,
 	)
 	if err != nil {
 		return nil, err
@@ -146,11 +174,11 @@ func (r *pgRepository) ListPublishedPages(ctx context.Context, limit int, cursor
 	return pages, rows.Err()
 }
 
-func (r *pgRepository) UpdatePage(ctx context.Context, page *Page) error {
+func (r *pgRepository) UpdatePage(ctx context.Context, p *Page) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_pages SET title = $1, slug = $2, content = $3, meta_description = $4, featured_image = $5, updated_at = CURRENT_TIMESTAMP WHERE id = $6 AND deleted_at IS NULL`,
-		page.Title, page.Slug, page.Content, page.MetaDescription, page.FeaturedImage, page.ID,
+		`UPDATE cms_pages SET title=$1, slug=$2, content=$3, meta_description=$4, featured_image=$5, updated_at=NOW() WHERE id=$6 AND deleted_at IS NULL`,
+		p.Title, p.Slug, p.Content, p.MetaDescription, p.FeaturedImage, p.ID,
 	)
 	return err
 }
@@ -158,7 +186,7 @@ func (r *pgRepository) UpdatePage(ctx context.Context, page *Page) error {
 func (r *pgRepository) DeletePage(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_pages SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_pages SET deleted_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
@@ -166,7 +194,7 @@ func (r *pgRepository) DeletePage(ctx context.Context, id int64) error {
 func (r *pgRepository) PublishPage(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_pages SET status = 'published', published_at = COALESCE(published_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_pages SET status='published', published_at=COALESCE(published_at, NOW()), updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
@@ -174,44 +202,27 @@ func (r *pgRepository) PublishPage(ctx context.Context, id int64) error {
 func (r *pgRepository) UnpublishPage(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_pages SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_pages SET status='draft', updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
 
 // --- Blog Posts ---
 
-func scanBlogPost(sc interface{ Scan(dest ...interface{}) error }) (BlogPost, error) {
-	var bp BlogPost
-	err := sc.Scan(
-		&bp.ID, &bp.Title, &bp.Slug, &bp.Content, &bp.Excerpt, &bp.FeaturedImage,
-		&bp.AuthorID, &bp.Status, &bp.PublishedAt, pq.Array(&bp.Tags),
-		&bp.ViewCount, &bp.CreatedAt, &bp.UpdatedAt, &bp.DeletedAt,
-	)
-	if err != nil {
-		return bp, err
-	}
-	if bp.Tags == nil {
-		bp.Tags = []string{}
-	}
-	return bp, nil
-}
-
-func (r *pgRepository) CreateBlogPost(ctx context.Context, post *BlogPost) error {
+func (r *pgRepository) CreatePost(ctx context.Context, p *BlogPost) error {
 	q := database.GetQueryer(ctx, r.db)
 	return q.QueryRowContext(ctx,
 		`INSERT INTO cms_blog_posts (title, slug, content, excerpt, featured_image, author_id, status, tags)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 RETURNING id, created_at, updated_at`,
-		post.Title, post.Slug, post.Content, post.Excerpt, post.FeaturedImage,
-		post.AuthorID, post.Status, pq.Array(post.Tags),
-	).Scan(&post.ID, &post.CreatedAt, &post.UpdatedAt)
+		p.Title, p.Slug, p.Content, p.Excerpt, p.FeaturedImage, p.AuthorID, p.Status, pq.Array(p.Tags),
+	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
-func (r *pgRepository) GetBlogPostByID(ctx context.Context, id int64) (*BlogPost, error) {
+func (r *pgRepository) GetPostByID(ctx context.Context, id int64) (*BlogPost, error) {
 	q := database.GetQueryer(ctx, r.db)
-	bp, err := scanBlogPost(q.QueryRowContext(ctx,
-		`SELECT `+blogPostColumns+` FROM cms_blog_posts WHERE id = $1 AND deleted_at IS NULL`, id,
+	bp, err := scanPost(q.QueryRowContext(ctx,
+		`SELECT `+postColumns+` FROM cms_blog_posts WHERE id = $1 AND deleted_at IS NULL`, id,
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -222,10 +233,10 @@ func (r *pgRepository) GetBlogPostByID(ctx context.Context, id int64) (*BlogPost
 	return &bp, nil
 }
 
-func (r *pgRepository) GetBlogPostBySlug(ctx context.Context, slug string) (*BlogPost, error) {
+func (r *pgRepository) GetPostBySlug(ctx context.Context, slug string) (*BlogPost, error) {
 	q := database.GetQueryer(ctx, r.db)
-	bp, err := scanBlogPost(q.QueryRowContext(ctx,
-		`SELECT `+blogPostColumns+` FROM cms_blog_posts WHERE slug = $1 AND deleted_at IS NULL`, slug,
+	bp, err := scanPost(q.QueryRowContext(ctx,
+		`SELECT `+postColumns+` FROM cms_blog_posts WHERE slug = $1 AND deleted_at IS NULL`, slug,
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -236,11 +247,11 @@ func (r *pgRepository) GetBlogPostBySlug(ctx context.Context, slug string) (*Blo
 	return &bp, nil
 }
 
-func (r *pgRepository) ListBlogPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error) {
+func (r *pgRepository) ListPosts(ctx context.Context, limit int, cursor int64, status string) ([]BlogPost, error) {
 	q := database.GetQueryer(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT `+blogPostColumns+` FROM cms_blog_posts WHERE id > $2 AND deleted_at IS NULL ORDER BY id ASC LIMIT $1`,
-		limit, cursor,
+		`SELECT `+postColumns+` FROM cms_blog_posts WHERE id > $2 AND deleted_at IS NULL AND ($3 = '' OR status = $3) ORDER BY id ASC LIMIT $1`,
+		limit, cursor, status,
 	)
 	if err != nil {
 		return nil, err
@@ -248,7 +259,7 @@ func (r *pgRepository) ListBlogPosts(ctx context.Context, limit int, cursor int6
 	defer rows.Close()
 	var posts []BlogPost
 	for rows.Next() {
-		bp, err := scanBlogPost(rows)
+		bp, err := scanPost(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -257,10 +268,10 @@ func (r *pgRepository) ListBlogPosts(ctx context.Context, limit int, cursor int6
 	return posts, rows.Err()
 }
 
-func (r *pgRepository) ListPublishedBlogPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error) {
+func (r *pgRepository) ListPublishedPosts(ctx context.Context, limit int, cursor int64) ([]BlogPost, error) {
 	q := database.GetQueryer(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT `+blogPostColumns+` FROM cms_blog_posts WHERE id > $2 AND deleted_at IS NULL AND status = 'published' ORDER BY id ASC LIMIT $1`,
+		`SELECT `+postColumns+` FROM cms_blog_posts WHERE id > $2 AND deleted_at IS NULL AND status = 'published' ORDER BY id ASC LIMIT $1`,
 		limit, cursor,
 	)
 	if err != nil {
@@ -269,7 +280,7 @@ func (r *pgRepository) ListPublishedBlogPosts(ctx context.Context, limit int, cu
 	defer rows.Close()
 	var posts []BlogPost
 	for rows.Next() {
-		bp, err := scanBlogPost(rows)
+		bp, err := scanPost(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -278,79 +289,63 @@ func (r *pgRepository) ListPublishedBlogPosts(ctx context.Context, limit int, cu
 	return posts, rows.Err()
 }
 
-func (r *pgRepository) UpdateBlogPost(ctx context.Context, post *BlogPost) error {
+func (r *pgRepository) UpdatePost(ctx context.Context, p *BlogPost) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET title = $1, slug = $2, content = $3, excerpt = $4, featured_image = $5, tags = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 AND deleted_at IS NULL`,
-		post.Title, post.Slug, post.Content, post.Excerpt, post.FeaturedImage, pq.Array(post.Tags), post.ID,
+		`UPDATE cms_blog_posts SET title=$1, slug=$2, content=$3, excerpt=$4, featured_image=$5, tags=$6, updated_at=NOW() WHERE id=$7 AND deleted_at IS NULL`,
+		p.Title, p.Slug, p.Content, p.Excerpt, p.FeaturedImage, pq.Array(p.Tags), p.ID,
 	)
 	return err
 }
 
-func (r *pgRepository) DeleteBlogPost(ctx context.Context, id int64) error {
+func (r *pgRepository) DeletePost(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_blog_posts SET deleted_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
 
-func (r *pgRepository) PublishBlogPost(ctx context.Context, id int64) error {
+func (r *pgRepository) PublishPost(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET status = 'published', published_at = COALESCE(published_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_blog_posts SET status='published', published_at=COALESCE(published_at, NOW()), updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
 
-func (r *pgRepository) UnpublishBlogPost(ctx context.Context, id int64) error {
+func (r *pgRepository) UnpublishPost(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET status = 'draft', updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_blog_posts SET status='draft', updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id,
 	)
 	return err
 }
 
-func (r *pgRepository) IncrementViewCount(ctx context.Context, id int64) error {
+func (r *pgRepository) IncrementPostViewCount(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET view_count = view_count + 1 WHERE id = $1 AND deleted_at IS NULL`, id,
+		`UPDATE cms_blog_posts SET view_count = view_count + 1 WHERE id = $1`, id,
 	)
 	return err
 }
 
 // --- Page Sections ---
 
-func scanPageSection(sc interface{ Scan(dest ...interface{}) error }) (PageSection, error) {
-	var ps PageSection
-	var contentBytes []byte
-	err := sc.Scan(
-		&ps.ID, &ps.PageID, &ps.Type, &ps.Title,
-		&contentBytes, &ps.SortOrder, &ps.CreatedAt, &ps.UpdatedAt,
-	)
-	if err != nil {
-		return ps, err
-	}
-	if contentBytes != nil {
-		ps.Content = json.RawMessage(contentBytes)
-	}
-	return ps, nil
-}
-
-func (r *pgRepository) CreatePageSection(ctx context.Context, section *PageSection) error {
+func (r *pgRepository) CreateSection(ctx context.Context, s *PageSection) error {
 	q := database.GetQueryer(ctx, r.db)
 	return q.QueryRowContext(ctx,
 		`INSERT INTO cms_page_sections (page_id, type, title, content, sort_order)
 		 VALUES ($1, $2, $3, $4, $5)
 		 RETURNING id, created_at, updated_at`,
-		section.PageID, section.Type, section.Title, []byte(section.Content), section.SortOrder,
-	).Scan(&section.ID, &section.CreatedAt, &section.UpdatedAt)
+		s.PageID, s.Type, s.Title, []byte(s.Content), s.SortOrder,
+	).Scan(&s.ID, &s.CreatedAt, &s.UpdatedAt)
 }
 
-func (r *pgRepository) ListPageSectionsByPageID(ctx context.Context, pageID int64) ([]PageSection, error) {
+func (r *pgRepository) ListSectionsByPageID(ctx context.Context, pageID int64) ([]PageSection, error) {
 	q := database.GetQueryer(ctx, r.db)
 	rows, err := q.QueryContext(ctx,
-		`SELECT `+pageSectionColumns+` FROM cms_page_sections WHERE page_id = $1 ORDER BY sort_order ASC`, pageID,
+		`SELECT `+sectionColumns+` FROM cms_page_sections WHERE page_id = $1 ORDER BY sort_order ASC`, pageID,
 	)
 	if err != nil {
 		return nil, err
@@ -358,7 +353,7 @@ func (r *pgRepository) ListPageSectionsByPageID(ctx context.Context, pageID int6
 	defer rows.Close()
 	var sections []PageSection
 	for rows.Next() {
-		ps, err := scanPageSection(rows)
+		ps, err := scanSection(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -367,10 +362,10 @@ func (r *pgRepository) ListPageSectionsByPageID(ctx context.Context, pageID int6
 	return sections, rows.Err()
 }
 
-func (r *pgRepository) GetPageSectionByID(ctx context.Context, id int64) (*PageSection, error) {
+func (r *pgRepository) GetSectionByID(ctx context.Context, id int64) (*PageSection, error) {
 	q := database.GetQueryer(ctx, r.db)
-	ps, err := scanPageSection(q.QueryRowContext(ctx,
-		`SELECT `+pageSectionColumns+` FROM cms_page_sections WHERE id = $1`, id,
+	ps, err := scanSection(q.QueryRowContext(ctx,
+		`SELECT `+sectionColumns+` FROM cms_page_sections WHERE id = $1`, id,
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -381,23 +376,17 @@ func (r *pgRepository) GetPageSectionByID(ctx context.Context, id int64) (*PageS
 	return &ps, nil
 }
 
-func (r *pgRepository) UpdatePageSection(ctx context.Context, section *PageSection) error {
+func (r *pgRepository) UpdateSection(ctx context.Context, s *PageSection) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_page_sections SET type = $1, title = $2, content = $3, sort_order = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`,
-		section.Type, section.Title, []byte(section.Content), section.SortOrder, section.ID,
+		`UPDATE cms_page_sections SET type=$1, title=$2, content=$3, sort_order=$4, updated_at=NOW() WHERE id=$5`,
+		s.Type, s.Title, []byte(s.Content), s.SortOrder, s.ID,
 	)
 	return err
 }
 
-func (r *pgRepository) DeletePageSection(ctx context.Context, id int64) error {
+func (r *pgRepository) DeleteSection(ctx context.Context, id int64) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx, `DELETE FROM cms_page_sections WHERE id = $1`, id)
-	return err
-}
-
-func (r *pgRepository) DeletePageSectionsByPageID(ctx context.Context, pageID int64) error {
-	q := database.GetQueryer(ctx, r.db)
-	_, err := q.ExecContext(ctx, `DELETE FROM cms_page_sections WHERE page_id = $1`, pageID)
 	return err
 }

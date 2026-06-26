@@ -96,6 +96,8 @@ func main() {
 	storageAuthGroup := e.Group("/api", authMW)
 	publicGroup := e.Group("/api/public")
 	cont.StorageH.RegisterRoutes(storageAuthGroup, publicGroup, authMW)
+	cont.CMSH.RegisterRoutes(authGroup, publicGroup, authMW)
+	cont.ContactH.RegisterRoutes(authGroup, publicGroup, authMW)
 
 	healthLimit := appMiddleware.LimitIP(60)
 	e.GET("/api/health", func(ec echo.Context) error {
