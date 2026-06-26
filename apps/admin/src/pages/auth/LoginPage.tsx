@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import api, { getApiError } from '../../lib/api'
 import { Card, Button, Input } from '../../components/ui'
 
 export default function LoginPage() {
@@ -23,15 +24,7 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/')
     } catch (err: any) {
-      if (err.response?.status === 429) {
-        setError('Too many attempts. Please try again later.')
-      } else if (err.response?.status === 401) {
-        setError('Invalid email or password')
-      } else if (err.code === 'ERR_NETWORK') {
-        setError('Unable to connect to server. Please check your connection.')
-      } else {
-        setError('An unexpected error occurred. Please try again.')
-      }
+      setError(getApiError(err))
     } finally {
       setSubmitting(false)
     }

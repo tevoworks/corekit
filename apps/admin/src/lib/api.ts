@@ -30,6 +30,20 @@ export function setNavigate(nav: (path: string) => void) {
   navigate = nav
 }
 
+// Extract error message from backend response envelope { error: { code, message } }
+export function getApiError(err: any): string {
+  if (err.response?.data?.error?.message) {
+    return err.response.data.error.message
+  }
+  if (err.response?.data?.message) {
+    return err.response.data.message
+  }
+  if (err.message === 'Network Error') {
+    return 'Unable to connect to server. Please check your connection.'
+  }
+  return err.message || 'An unexpected error occurred. Please try again.'
+}
+
 api.interceptors.response.use(
   (res) => res,
   async (err) => {

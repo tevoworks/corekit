@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../lib/auth'
+import api, { getApiError } from '../../lib/api'
 import { Card, Button, Input } from '../../components/ui'
 
 export default function RegisterPage() {
@@ -20,8 +21,8 @@ export default function RegisterPage() {
     try {
       const msg = await register(email, password, fullName)
       navigate(msg ? '/login?registered=1' : '/')
-    } catch {
-      setError('Registration failed. Please try again.')
+    } catch (err: any) {
+      setError(getApiError(err))
     } finally {
       setSubmitting(false)
     }
