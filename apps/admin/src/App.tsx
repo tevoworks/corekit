@@ -20,6 +20,11 @@ import SessionsPage from './pages/sessions/SessionsPage'
 import JobsPage from './pages/jobs/JobsPage'
 import NotificationsPage from './pages/notifications/NotificationsPage'
 import ProfilePage from './pages/profile/ProfilePage'
+import PagesPage from './pages/cms/PagesPage'
+import SectionsPage from './pages/cms/SectionsPage'
+import BlogPage from './pages/cms/BlogPage'
+import MessagesPage from './pages/contact/MessagesPage'
+import SubscribersPage from './pages/contact/SubscribersPage'
 import type { ReactNode } from 'react'
 import { useEffect } from 'react'
 
@@ -66,6 +71,11 @@ export default function App() {
               <Route path="/sessions" element={<ErrorBoundary><SessionsPage /></ErrorBoundary>} />
               <Route path="/jobs" element={<ErrorBoundary><JobsPage /></ErrorBoundary>} />
               <Route path="/notifications" element={<ErrorBoundary><NotificationsPage /></ErrorBoundary>} />
+              <Route path="/cms/pages" element={<ErrorBoundary><PagesPage /></ErrorBoundary>} />
+              <Route path="/cms/pages/:pageId/sections" element={<ErrorBoundary><SectionsPage /></ErrorBoundary>} />
+              <Route path="/cms/blog" element={<ErrorBoundary><BlogPage /></ErrorBoundary>} />
+              <Route path="/contact/messages" element={<ErrorBoundary><MessagesPage /></ErrorBoundary>} />
+              <Route path="/contact/subscribers" element={<ErrorBoundary><SubscribersPage /></ErrorBoundary>} />
               <Route path="/profile" element={<ErrorBoundary><ProfilePage /></ErrorBoundary>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -177,3 +177,70 @@ export interface ApiResponse<T> {
     message: string
   }
 }
+
+export interface Page {
+  id: number
+  title: string
+  slug: string
+  content: string
+  meta_description: string
+  featured_image: string
+  status: string
+  published_at: string | null
+  created_by: number
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface BlogPost {
+  id: number
+  title: string
+  slug: string
+  content: string
+  excerpt: string
+  featured_image: string
+  author_id: number
+  status: string
+  published_at: string | null
+  tags: string[]
+  view_count: number
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+}
+
+export interface PageSection {
+  id: number
+  page_id: number
+  type: string
+  title: string
+  content: any
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Contact {
+  id: number
+  name: string
+  email: string
+  phone: string
+  subject: string
+  message: string
+  source: string
+  status: string
+  assigned_to: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface NewsletterSubscriber {
+  id: number
+  email: string
+  name: string
+  source: string
+  metadata: any
+  subscribed_at: string
+  unsubscribed_at: string | null
+}

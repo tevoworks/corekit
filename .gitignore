@@ -85,6 +85,9 @@ yarn.lock
 # ── Plan / Design docs (not for remote) ──
 MARKETING_APP_PLAN.md
 
+# ── Turbo cache ──
+.turbo/
+
 # ── Logs / Debug ──
 *.log
 npm-debug.log*

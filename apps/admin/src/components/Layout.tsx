@@ -34,6 +34,15 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { to: '/notifications', label: 'Notifications', icon: 'notifications' },
     ],
   },
+  {
+    label: 'Marketing',
+    items: [
+      { to: '/cms/pages', label: 'Pages', icon: 'description' },
+      { to: '/cms/blog', label: 'Blog', icon: 'article' },
+      { to: '/contact/messages', label: 'Messages', icon: 'inbox' },
+      { to: '/contact/subscribers', label: 'Subscribers', icon: 'mail' },
+    ],
+  },
 ]
 
 export default function Layout() {
