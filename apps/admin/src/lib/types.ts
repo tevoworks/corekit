@@ -183,7 +183,10 @@ export interface Page {
   title: string
   slug: string
   content: string
+  meta_title: string
   meta_description: string
+  og_image: string
+  featured_image_id: number | null
   featured_image: string
   status: string
   published_at: string | null
@@ -199,6 +202,10 @@ export interface BlogPost {
   slug: string
   content: string
   excerpt: string
+  meta_title: string
+  meta_description: string
+  og_image: string
+  featured_image_id: number | null
   featured_image: string
   author_id: number
   status: string

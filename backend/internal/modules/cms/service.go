@@ -4,14 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/tevoworks/corekit/backend/internal/database"
 	"github.com/tevoworks/corekit/backend/internal/modules/audit"
 )
 
+var strictPolicy = bluemonday.StrictPolicy()
+var ErrSlugConflict = errors.New("slug already exists")
+
 type Service interface {
-	CreatePage(ctx context.Context, title, slug, content, metaDescription, featuredImage string, actorID int64) (*Page, error)
-	UpdatePage(ctx context.Context, id int64, title, slug, content, metaDescription, featuredImage string, actorID int64) (*Page, error)
+	CreatePage(ctx context.Context, title, slug, content, metaTitle, metaDescription, ogImage string, featuredImageID *int64, actorID int64) (*Page, error)
+	UpdatePage(ctx context.Context, id int64, title, slug, content, metaTitle, metaDescription, ogImage string, featuredImageID *int64, actorID int64) (*Page, error)
 	GetPage(ctx context.Context, id int64) (*Page, error)
 	GetPageBySlug(ctx context.Context, slug string) (*Page, error)
 	ListPages(ctx context.Context, limit, cursor int64, status string) ([]Page, error)
@@ -19,9 +24,10 @@ type Service interface {
 	PublishPage(ctx context.Context, id, actorID int64) error
 	UnpublishPage(ctx context.Context, id, actorID int64) error
 	ListPublishedPages(ctx context.Context, limit, cursor int64) ([]Page, error)
+	CheckSlugExists(ctx context.Context, slug string, excludeID int64) (bool, error)
 
-	CreatePost(ctx context.Context, title, slug, content, excerpt, featuredImage string, tags []string, authorID int64) (*BlogPost, error)
-	UpdatePost(ctx context.Context, id int64, title, slug, content, excerpt, featuredImage string, tags []string, actorID int64) (*BlogPost, error)
+	CreatePost(ctx context.Context, title, slug, content, excerpt, metaTitle, metaDescription, ogImage string, featuredImageID *int64, tags []string, authorID int64) (*BlogPost, error)
+	UpdatePost(ctx context.Context, id int64, title, slug, content, excerpt, metaTitle, metaDescription, ogImage string, featuredImageID *int64, tags []string, actorID int64) (*BlogPost, error)
 	GetPost(ctx context.Context, id int64) (*BlogPost, error)
 	GetPostBySlug(ctx context.Context, slug string) (*BlogPost, error)
 	ListPosts(ctx context.Context, limit, cursor int64, status string) ([]BlogPost, error)
@@ -50,19 +56,29 @@ func NewService(db *sql.DB, repo Repository, auditService audit.Service) Service
 
 // --- Pages ---
 
-func (s *service) CreatePage(ctx context.Context, title, slug, content, metaDescription, featuredImage string, actorID int64) (*Page, error) {
+func (s *service) CreatePage(ctx context.Context, title, slug, content, metaTitle, metaDescription, ogImage string, featuredImageID *int64, actorID int64) (*Page, error) {
+	exists, err := s.repo.CheckSlugExists(ctx, slug, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrSlugConflict
+	}
+
 	p := &Page{
 		Title:           title,
 		Slug:            slug,
-		Content:         content,
+		Content:         strictPolicy.Sanitize(content),
+		MetaTitle:       metaTitle,
 		MetaDescription: metaDescription,
-		FeaturedImage:   featuredImage,
+		OgImage:         ogImage,
+		FeaturedImageID: featuredImageID,
 		Status:          "draft",
 		CreatedBy:       actorID,
 	}
 
 	actx := database.WithAuditCtx(ctx, actorID, "CREATE_PAGE")
-	err := database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
+	err = database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
 		return s.repo.CreatePage(txCtx, p)
 	})
 	if err != nil {
@@ -71,7 +87,7 @@ func (s *service) CreatePage(ctx context.Context, title, slug, content, metaDesc
 	return p, nil
 }
 
-func (s *service) UpdatePage(ctx context.Context, id int64, title, slug, content, metaDescription, featuredImage string, actorID int64) (*Page, error) {
+func (s *service) UpdatePage(ctx context.Context, id int64, title, slug, content, metaTitle, metaDescription, ogImage string, featuredImageID *int64, actorID int64) (*Page, error) {
 	var p *Page
 	actx := database.WithAuditCtx(ctx, actorID, "UPDATE_PAGE")
 	err := database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
@@ -83,11 +99,24 @@ func (s *service) UpdatePage(ctx context.Context, id int64, title, slug, content
 		if p == nil {
 			return database.ErrNotFound
 		}
+
+		if slug != p.Slug {
+			exists, err := s.repo.CheckSlugExists(txCtx, slug, id)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return ErrSlugConflict
+			}
+		}
+
 		p.Title = title
 		p.Slug = slug
-		p.Content = content
+		p.Content = strictPolicy.Sanitize(content)
+		p.MetaTitle = metaTitle
 		p.MetaDescription = metaDescription
-		p.FeaturedImage = featuredImage
+		p.OgImage = ogImage
+		p.FeaturedImageID = featuredImageID
 		return s.repo.UpdatePage(txCtx, p)
 	})
 	if err != nil {
@@ -133,22 +162,41 @@ func (s *service) ListPublishedPages(ctx context.Context, limit, cursor int64) (
 	return s.repo.ListPublishedPages(ctx, int(limit), cursor)
 }
 
+func (s *service) CheckSlugExists(ctx context.Context, slug string, excludeID int64) (bool, error) {
+	return s.repo.CheckSlugExists(ctx, slug, excludeID)
+}
+
 // --- Blog Posts ---
 
-func (s *service) CreatePost(ctx context.Context, title, slug, content, excerpt, featuredImage string, tags []string, authorID int64) (*BlogPost, error) {
+func (s *service) CreatePost(ctx context.Context, title, slug, content, excerpt, metaTitle, metaDescription, ogImage string, featuredImageID *int64, tags []string, authorID int64) (*BlogPost, error) {
+	exists, err := s.repo.CheckSlugExists(ctx, slug, 0)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, ErrSlugConflict
+	}
+
+	if tags == nil {
+		tags = []string{}
+	}
+
 	p := &BlogPost{
-		Title:         title,
-		Slug:          slug,
-		Content:       content,
-		Excerpt:       excerpt,
-		FeaturedImage: featuredImage,
-		AuthorID:      authorID,
-		Status:        "draft",
-		Tags:          tags,
+		Title:           title,
+		Slug:            slug,
+		Content:         strictPolicy.Sanitize(content),
+		Excerpt:         excerpt,
+		MetaTitle:       metaTitle,
+		MetaDescription: metaDescription,
+		OgImage:         ogImage,
+		FeaturedImageID: featuredImageID,
+		AuthorID:        authorID,
+		Status:          "draft",
+		Tags:            tags,
 	}
 
 	actx := database.WithAuditCtx(ctx, authorID, "CREATE_POST")
-	err := database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
+	err = database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
 		return s.repo.CreatePost(txCtx, p)
 	})
 	if err != nil {
@@ -157,7 +205,7 @@ func (s *service) CreatePost(ctx context.Context, title, slug, content, excerpt,
 	return p, nil
 }
 
-func (s *service) UpdatePost(ctx context.Context, id int64, title, slug, content, excerpt, featuredImage string, tags []string, actorID int64) (*BlogPost, error) {
+func (s *service) UpdatePost(ctx context.Context, id int64, title, slug, content, excerpt, metaTitle, metaDescription, ogImage string, featuredImageID *int64, tags []string, actorID int64) (*BlogPost, error) {
 	var p *BlogPost
 	actx := database.WithAuditCtx(ctx, actorID, "UPDATE_POST")
 	err := database.RunInTransaction(actx, s.db, func(txCtx context.Context) error {
@@ -169,12 +217,29 @@ func (s *service) UpdatePost(ctx context.Context, id int64, title, slug, content
 		if p == nil {
 			return database.ErrNotFound
 		}
+
+		if slug != p.Slug {
+			exists, err := s.repo.CheckSlugExists(txCtx, slug, id)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return ErrSlugConflict
+			}
+		}
+
 		p.Title = title
 		p.Slug = slug
-		p.Content = content
+		p.Content = strictPolicy.Sanitize(content)
 		p.Excerpt = excerpt
-		p.FeaturedImage = featuredImage
+		p.MetaTitle = metaTitle
+		p.MetaDescription = metaDescription
+		p.OgImage = ogImage
+		p.FeaturedImageID = featuredImageID
 		p.Tags = tags
+		if p.Tags == nil {
+			p.Tags = []string{}
+		}
 		return s.repo.UpdatePost(txCtx, p)
 	})
 	if err != nil {

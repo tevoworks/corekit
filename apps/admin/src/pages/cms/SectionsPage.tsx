@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../../lib/api'
+import api, { getApiError } from '../../lib/api'
 import type { PageSection } from '../../lib/types'
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -35,19 +35,19 @@ export default function SectionsPage() {
   const createMutation = useMutation({
     mutationFn: (body: any) => api.post(`/api/cms/pages/${pageId}/sections`, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['CMS', 'sections', pageId] }); setShowForm(false) },
-    onError: (err: any) => setError(err.response?.data?.error?.message || 'Failed to create section'),
+    onError: (err: any) => setError(getApiError(err)),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, ...body }: any) => api.put(`/api/cms/pages/${pageId}/sections/${id}`, body),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['CMS', 'sections', pageId] }); setEditing(null) },
-    onError: (err: any) => setError(err.response?.data?.error?.message || 'Failed to update section'),
+    onError: (err: any) => setError(getApiError(err)),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/api/cms/pages/${pageId}/sections/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['CMS', 'sections', pageId] }); setConfirmDelete(null) },
-    onError: (err: any) => setError(err.response?.data?.error?.message || 'Failed to delete section'),
+    onError: (err: any) => setError(getApiError(err)),
   })
 
   if (isLoading) return (
@@ -71,7 +71,7 @@ export default function SectionsPage() {
       />
 
       {showForm && (
-        <Modal title="Create Section" onClose={() => { setShowForm(false); setError(null) }} testId="sections-create-modal">
+        <Modal title="Create Section" onClose={() => { setShowForm(false); setError(null) }} testId="sections-create-modal" size="lg">
           <SectionFormContent
             onSave={(body) => createMutation.mutate(body)}
             onCancel={() => { setShowForm(false); setError(null) }}
@@ -82,7 +82,7 @@ export default function SectionsPage() {
         </Modal>
       )}
       {editing && (
-        <Modal title="Edit Section" onClose={() => { setEditing(null); setError(null) }} testId="sections-edit-modal">
+        <Modal title="Edit Section" onClose={() => { setEditing(null); setError(null) }} testId="sections-edit-modal" size="lg">
           <SectionFormContent
             section={editing}
             onSave={(body) => updateMutation.mutate({ id: editing.id, ...body })}
@@ -141,6 +141,24 @@ function SectionFormContent({ section, onSave, onCancel, saving, error, onClearE
   const [title, setTitle] = useState(section?.title || '')
   const [content, setContent] = useState(section?.content ? JSON.stringify(section.content, null, 2) : '')
   const [sortOrder, setSortOrder] = useState(String(section?.sort_order ?? 0))
+  const [contentError, setContentError] = useState<string | null>(null)
+
+  const handleContentChange = (val: string) => {
+    setContent(val)
+    setContentError(null)
+  }
+
+  const handleSave = () => {
+    let parsed = {}
+    try {
+      parsed = JSON.parse(content)
+      setContentError(null)
+    } catch {
+      setContentError('Invalid JSON. Please check your syntax.')
+      return
+    }
+    onSave({ type, title, content: parsed, sort_order: Number(sortOrder) })
+  }
 
   return (
     <div>
@@ -148,7 +166,7 @@ function SectionFormContent({ section, onSave, onCancel, saving, error, onClearE
         <div className="mb-4 p-3 rounded-lg bg-[var(--danger-bg)] text-[var(--danger-text)] text-sm flex items-center gap-2" data-testid="sections-form-error">
           <span className="material-symbols-outlined text-base">error</span>
           <span className="flex-1">{error}</span>
-          <button onClick={onClearError} className="text-[var(--danger-text)] hover:opacity-70">
+          <button onClick={onClearError} className="text-[var(--danger-text)] hover:opacity-70" data-testid="sections-form-error-dismiss">
             <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
@@ -170,17 +188,23 @@ function SectionFormContent({ section, onSave, onCancel, saving, error, onClearE
         <Input label="Title *" value={title} onChange={e => setTitle(e.target.value)} required data-testid="sections-form-title" />
         <div>
           <label className="block text-sm font-medium text-[var(--on-surface)] mb-1">Content (JSON)</label>
-          <textarea value={content} onChange={e => setContent(e.target.value)} rows={6} className="w-full px-3 py-3 rounded-lg border border-[var(--outline-variant)] text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all" data-testid="sections-form-content" />
+          <textarea
+            value={content}
+            onChange={e => handleContentChange(e.target.value)}
+            rows={8}
+            className={`w-full px-3 py-3 rounded-lg border text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-transparent transition-all ${contentError ? 'border-red-400' : 'border-[var(--outline-variant)]'}`}
+            data-testid="sections-form-content"
+            placeholder='{"key": "value"}'
+          />
+          {contentError && (
+            <p className="mt-1 text-xs text-red-500" data-testid="sections-form-content-error">{contentError}</p>
+          )}
         </div>
         <Input label="Sort Order" type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} data-testid="sections-form-sort" />
       </div>
       <div className="flex gap-2 justify-end mt-6 pt-4 border-t border-[var(--outline-variant)]">
         <Button variant="ghost" onClick={onCancel} data-testid="sections-form-cancel">Cancel</Button>
-        <Button onClick={() => {
-          let parsed = {}
-          try { parsed = JSON.parse(content) } catch {}
-          onSave({ type, title, content: parsed, sort_order: Number(sortOrder) })
-        }} loading={saving} disabled={!title} data-testid="sections-form-submit">{section ? 'Update' : 'Create'}</Button>
+        <Button onClick={handleSave} loading={saving} disabled={!title} data-testid="sections-form-submit">{section ? 'Update' : 'Create'}</Button>
       </div>
     </div>
   )

@@ -20,6 +20,7 @@ type Repository interface {
 	DeletePage(ctx context.Context, id int64) error
 	PublishPage(ctx context.Context, id int64) error
 	UnpublishPage(ctx context.Context, id int64) error
+	CheckSlugExists(ctx context.Context, slug string, excludeID int64) (bool, error)
 
 	CreatePost(ctx context.Context, p *BlogPost) error
 	GetPostByID(ctx context.Context, id int64) (*BlogPost, error)
@@ -47,28 +48,45 @@ func NewRepository(db *sql.DB) Repository {
 	return &pgRepository{db: db}
 }
 
-const pageColumns = `id, title, slug, content, meta_description, featured_image, status, published_at, created_by, created_at, updated_at, deleted_at`
-const postColumns = `id, title, slug, content, excerpt, featured_image, author_id, status, published_at, tags, view_count, created_at, updated_at, deleted_at`
+const pageColumns = `id, title, slug, content, meta_title, meta_description, og_image, featured_image_id, status, published_at, created_by, created_at, updated_at, deleted_at`
+const postColumns = `id, title, slug, content, excerpt, meta_title, meta_description, og_image, featured_image_id, author_id, status, published_at, tags, view_count, created_at, updated_at, deleted_at`
 const sectionColumns = `id, page_id, type, title, content, sort_order, created_at, updated_at`
 
 func scanPage(sc interface{ Scan(dest ...interface{}) error }) (Page, error) {
 	var p Page
+	var featuredImageID sql.NullInt64
 	err := sc.Scan(
-		&p.ID, &p.Title, &p.Slug, &p.Content, &p.MetaDescription, &p.FeaturedImage,
-		&p.Status, &p.PublishedAt, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
+		&p.ID, &p.Title, &p.Slug, &p.Content,
+		&p.MetaTitle, &p.MetaDescription, &p.OgImage,
+		&featuredImageID,
+		&p.Status, &p.PublishedAt, &p.CreatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &p.DeletedAt,
 	)
-	return p, err
+	if err != nil {
+		return p, err
+	}
+	if featuredImageID.Valid {
+		p.FeaturedImageID = &featuredImageID.Int64
+	}
+	return p, nil
 }
 
 func scanPost(sc interface{ Scan(dest ...interface{}) error }) (BlogPost, error) {
 	var bp BlogPost
+	var featuredImageID sql.NullInt64
 	err := sc.Scan(
-		&bp.ID, &bp.Title, &bp.Slug, &bp.Content, &bp.Excerpt, &bp.FeaturedImage,
-		&bp.AuthorID, &bp.Status, &bp.PublishedAt, pq.Array(&bp.Tags),
-		&bp.ViewCount, &bp.CreatedAt, &bp.UpdatedAt, &bp.DeletedAt,
+		&bp.ID, &bp.Title, &bp.Slug, &bp.Content, &bp.Excerpt,
+		&bp.MetaTitle, &bp.MetaDescription, &bp.OgImage,
+		&featuredImageID,
+		&bp.AuthorID, &bp.Status, &bp.PublishedAt,
+		pq.Array(&bp.Tags), &bp.ViewCount,
+		&bp.CreatedAt, &bp.UpdatedAt, &bp.DeletedAt,
 	)
 	if err != nil {
 		return bp, err
+	}
+	if featuredImageID.Valid {
+		bp.FeaturedImageID = &featuredImageID.Int64
 	}
 	if bp.Tags == nil {
 		bp.Tags = []string{}
@@ -97,10 +115,10 @@ func scanSection(sc interface{ Scan(dest ...interface{}) error }) (PageSection, 
 func (r *pgRepository) CreatePage(ctx context.Context, p *Page) error {
 	q := database.GetQueryer(ctx, r.db)
 	return q.QueryRowContext(ctx,
-		`INSERT INTO cms_pages (title, slug, content, meta_description, featured_image, status, created_by)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO cms_pages (title, slug, content, meta_title, meta_description, og_image, featured_image_id, status, created_by)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		 RETURNING id, created_at, updated_at`,
-		p.Title, p.Slug, p.Content, p.MetaDescription, p.FeaturedImage, p.Status, p.CreatedBy,
+		p.Title, p.Slug, p.Content, p.MetaTitle, p.MetaDescription, p.OgImage, p.FeaturedImageID, p.Status, p.CreatedBy,
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
@@ -177,8 +195,8 @@ func (r *pgRepository) ListPublishedPages(ctx context.Context, limit int, cursor
 func (r *pgRepository) UpdatePage(ctx context.Context, p *Page) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_pages SET title=$1, slug=$2, content=$3, meta_description=$4, featured_image=$5, updated_at=NOW() WHERE id=$6 AND deleted_at IS NULL`,
-		p.Title, p.Slug, p.Content, p.MetaDescription, p.FeaturedImage, p.ID,
+		`UPDATE cms_pages SET title=$1, slug=$2, content=$3, meta_title=$4, meta_description=$5, og_image=$6, featured_image_id=$7, updated_at=NOW() WHERE id=$8 AND deleted_at IS NULL`,
+		p.Title, p.Slug, p.Content, p.MetaTitle, p.MetaDescription, p.OgImage, p.FeaturedImageID, p.ID,
 	)
 	return err
 }
@@ -207,15 +225,32 @@ func (r *pgRepository) UnpublishPage(ctx context.Context, id int64) error {
 	return err
 }
 
+func (r *pgRepository) CheckSlugExists(ctx context.Context, slug string, excludeID int64) (bool, error) {
+	q := database.GetQueryer(ctx, r.db)
+	var exists bool
+	err := q.QueryRowContext(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM cms_pages WHERE slug = $1 AND deleted_at IS NULL AND id != $2
+			UNION ALL
+			SELECT 1 FROM cms_blog_posts WHERE slug = $1 AND deleted_at IS NULL AND id != $2
+		)`,
+		slug, excludeID,
+	).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 // --- Blog Posts ---
 
 func (r *pgRepository) CreatePost(ctx context.Context, p *BlogPost) error {
 	q := database.GetQueryer(ctx, r.db)
 	return q.QueryRowContext(ctx,
-		`INSERT INTO cms_blog_posts (title, slug, content, excerpt, featured_image, author_id, status, tags)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO cms_blog_posts (title, slug, content, excerpt, meta_title, meta_description, og_image, featured_image_id, author_id, status, tags)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		 RETURNING id, created_at, updated_at`,
-		p.Title, p.Slug, p.Content, p.Excerpt, p.FeaturedImage, p.AuthorID, p.Status, pq.Array(p.Tags),
+		p.Title, p.Slug, p.Content, p.Excerpt, p.MetaTitle, p.MetaDescription, p.OgImage, p.FeaturedImageID, p.AuthorID, p.Status, pq.Array(p.Tags),
 	).Scan(&p.ID, &p.CreatedAt, &p.UpdatedAt)
 }
 
@@ -292,8 +327,8 @@ func (r *pgRepository) ListPublishedPosts(ctx context.Context, limit int, cursor
 func (r *pgRepository) UpdatePost(ctx context.Context, p *BlogPost) error {
 	q := database.GetQueryer(ctx, r.db)
 	_, err := q.ExecContext(ctx,
-		`UPDATE cms_blog_posts SET title=$1, slug=$2, content=$3, excerpt=$4, featured_image=$5, tags=$6, updated_at=NOW() WHERE id=$7 AND deleted_at IS NULL`,
-		p.Title, p.Slug, p.Content, p.Excerpt, p.FeaturedImage, pq.Array(p.Tags), p.ID,
+		`UPDATE cms_blog_posts SET title=$1, slug=$2, content=$3, excerpt=$4, meta_title=$5, meta_description=$6, og_image=$7, featured_image_id=$8, tags=$9, updated_at=NOW() WHERE id=$10 AND deleted_at IS NULL`,
+		p.Title, p.Slug, p.Content, p.Excerpt, p.MetaTitle, p.MetaDescription, p.OgImage, p.FeaturedImageID, pq.Array(p.Tags), p.ID,
 	)
 	return err
 }
