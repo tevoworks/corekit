@@ -1,5 +1,4 @@
 import { useEditor, EditorContent } from '@tiptap/react'
-import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Image from '@tiptap/extension-image'
@@ -47,20 +46,21 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
   const [tableCols, setTableCols] = useState(3)
   const [showTableInput, setShowTableInput] = useState(false)
   const [imageWidth, setImageWidth] = useState('')
+  const [showImageToolbar, setShowImageToolbar] = useState(false)
+  const [showTableToolbar, setShowTableToolbar] = useState(false)
   const sourceTextareaRef = useRef<HTMLTextAreaElement>(null)
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        typography: true,
         gapcursor: true,
         dropcursor: true,
       }),
       Link.configure({ openOnClick: false }),
       Image,
       Underline,
-      TextAlign.configure({ types: ['heading', 'paragraph', 'image'] }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Table.configure({ resizable: true }),
       TableRow,
       TableCell,
@@ -85,6 +85,23 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
     },
   })
 
+  useEffect(() => {
+    if (!editor) return
+    const onSelect = () => {
+      const { $anchor } = editor.state.selection
+      const node = $anchor.node()
+      const nodeType = node.type.name
+      setShowImageToolbar(editor.isActive('image'))
+      setShowTableToolbar(nodeType === 'table' || nodeType === 'tableRow' || nodeType === 'tableCell' || nodeType === 'tableHeader')
+      if (editor.isActive('image')) {
+        const attrs = editor.getAttributes('image')
+        setImageWidth(attrs.width ? String(parseInt(attrs.width)) : '')
+      }
+    }
+    editor.on('selectionUpdate', onSelect)
+    return () => { editor.off('selectionUpdate', onSelect) }
+  }, [editor])
+
   const toggleSource = () => {
     if (!editor) return
     if (!sourceMode) {
@@ -107,10 +124,6 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
       sourceTextareaRef.current.focus()
     }
   }, [sourceMode])
-
-  useEffect(() => {
-    if (!editor || showTableInput) return
-  }, [editor, showTableInput])
 
   const insertTable = useCallback(() => {
     if (!editor) return
@@ -161,7 +174,7 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
   const Divider = () => <span className="w-px h-4 bg-zinc-300 mx-0.5 shrink-0" />
 
   return (
-    <div className="border border-zinc-300 rounded-lg overflow-hidden" data-testid={testId}>
+    <div className="border border-zinc-300 rounded-lg overflow-hidden relative" data-testid={testId}>
       <div className="flex flex-wrap items-center gap-0.5 border-b border-zinc-200 bg-zinc-50 px-2 py-1.5">
         <Btn onClick={() => editor.chain().focus().undo().run()} label="↶" title="Undo" testId="editor-undo" />
         <Btn onClick={() => editor.chain().focus().redo().run()} label="↷" title="Redo" testId="editor-redo" />
@@ -236,51 +249,37 @@ export default function RichTextEditor({ content, onChange, placeholder, testId 
         </div>
       )}
 
-      {editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}
-          shouldShow={({ editor, state }) => {
-            const { selection } = state
-            const { $anchor } = selection
-            const node = $anchor.node()
-            const nodeType = node.type.name
-            const isTable = nodeType === 'table' || nodeType === 'tableRow' || nodeType === 'tableCell' || nodeType === 'tableHeader'
-            return isTable
-          }}
-          data-testid="editor-table-bubble"
-        >
-          <div className="flex items-center gap-0.5 bg-white border border-zinc-200 rounded-lg shadow-lg px-1 py-0.5 text-xs">
-            <Btn onClick={() => editor.chain().focus().addRowBefore().run()} label="Row ↑" testId="editor-table-add-row-before" />
-            <Btn onClick={() => editor.chain().focus().addRowAfter().run()} label="Row ↓" testId="editor-table-add-row-after" />
-            <Btn onClick={() => editor.chain().focus().addColumnBefore().run()} label="Col ←" testId="editor-table-add-col-before" />
-            <Btn onClick={() => editor.chain().focus().addColumnAfter().run()} label="Col →" testId="editor-table-add-col-after" />
-            <Divider />
-            <Btn onClick={() => editor.chain().focus().deleteRow().run()} label="Del Row" testId="editor-table-del-row" />
-            <Btn onClick={() => editor.chain().focus().deleteColumn().run()} label="Del Col" testId="editor-table-del-col" />
-            <Btn onClick={() => editor.chain().focus().deleteTable().run()} label="Del Tbl" testId="editor-table-del-table" />
-          </div>
-        </BubbleMenu>
+      {showImageToolbar && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-200 bg-amber-50 text-xs" data-testid="editor-image-toolbar">
+          <span className="text-zinc-500">W:</span>
+          <input type="number" value={imageWidth} onChange={e => {
+            setImageWidth(e.target.value)
+            const val = e.target.value ? `${e.target.value}px` : ''
+            editor.chain().focus().updateAttributes('image', { width: val, style: val ? `width: ${val}` : '' }).run()
+          }} className="w-14 px-1 py-0.5 border border-zinc-300 rounded text-xs" placeholder="auto" data-testid="editor-image-width" />
+          <Divider />
+          <Btn onClick={() => editor.chain().focus().setImage({ src: editor.getAttributes('image').src }).run()}
+            active={false} label="≡" title="Align left" testId="editor-image-align-left" />
+          <Btn onClick={() => { /* center image via textAlign */ }}
+            active={false} label="≡" title="Align center" testId="editor-image-align-center" />
+          <Btn onClick={() => { /* right */ }}
+            active={false} label="≡" title="Align right" testId="editor-image-align-right" />
+          <Divider />
+          <Btn onClick={() => editor.chain().focus().deleteSelection().run()} label="🗑" title="Delete image" testId="editor-image-delete" />
+        </div>
       )}
 
-      {editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}
-          shouldShow={({ editor }) => editor.isActive('image')}
-          data-testid="editor-image-bubble"
-        >
-          <div className="flex items-center gap-1.5 bg-white border border-zinc-200 rounded-lg shadow-lg px-2 py-1.5 text-xs">
-            <span className="text-zinc-500">W:</span>
-            <input type="number" value={imageWidth} onChange={e => {
-              setImageWidth(e.target.value)
-              const val = e.target.value ? `${e.target.value}px` : ''
-              editor.chain().focus().updateAttributes('image', { width: val, style: val ? `width: ${val}` : '' }).run()
-            }} className="w-14 px-1 py-0.5 border border-zinc-300 rounded text-xs" placeholder="auto" data-testid="editor-image-width" />
-            <Divider />
-            <Btn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} label="≡" testId="editor-image-align-left" />
-            <Btn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} label="≡" testId="editor-image-align-center" />
-            <Btn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} label="≡" testId="editor-image-align-right" />
-            <Divider />
-            <Btn onClick={() => editor.chain().focus().deleteSelection().run()} label="🗑" testId="editor-image-delete" />
-          </div>
-        </BubbleMenu>
+      {showTableToolbar && (
+        <div className="flex items-center gap-0.5 px-2 py-1 border-b border-zinc-200 bg-blue-50 text-xs" data-testid="editor-table-toolbar">
+          <Btn onClick={() => editor.chain().focus().addRowBefore().run()} label="Row ↑" testId="editor-table-add-row-before" />
+          <Btn onClick={() => editor.chain().focus().addRowAfter().run()} label="Row ↓" testId="editor-table-add-row-after" />
+          <Btn onClick={() => editor.chain().focus().addColumnBefore().run()} label="Col ←" testId="editor-table-add-col-before" />
+          <Btn onClick={() => editor.chain().focus().addColumnAfter().run()} label="Col →" testId="editor-table-add-col-after" />
+          <Divider />
+          <Btn onClick={() => editor.chain().focus().deleteRow().run()} label="Del Row" testId="editor-table-del-row" />
+          <Btn onClick={() => editor.chain().focus().deleteColumn().run()} label="Del Col" testId="editor-table-del-col" />
+          <Btn onClick={() => editor.chain().focus().deleteTable().run()} label="Del Tbl" testId="editor-table-del-table" />
+        </div>
       )}
 
       {sourceMode ? (
