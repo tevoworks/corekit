@@ -19,6 +19,24 @@ import (
 	"github.com/tevoworks/corekit/backend/pkg/httputil"
 )
 
+func urlCleanFilename(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.ReplaceAll(name, " ", "-")
+	name = strings.ReplaceAll(name, "#", "")
+	name = strings.ReplaceAll(name, "?", "")
+	name = strings.ReplaceAll(name, "&", "")
+	name = strings.ReplaceAll(name, "%", "")
+	name = strings.ReplaceAll(name, "+", "")
+	name = strings.ReplaceAll(name, "\"", "")
+	name = strings.ReplaceAll(name, "'", "")
+	name = strings.ReplaceAll(name, "<", "")
+	name = strings.ReplaceAll(name, ">", "")
+	if name == "" {
+		return "file"
+	}
+	return name
+}
+
 func sanitizeFilename(name string) string {
 	name = strings.ReplaceAll(name, "\r", "")
 	name = strings.ReplaceAll(name, "\n", "")
@@ -59,9 +77,11 @@ func (h *Handler) RegisterRoutes(authGroup *echo.Group, publicGroup *echo.Group,
 	authGroup.POST("/storage/upload", h.Upload, authMiddleware, middleware.LimitIP(10), middleware.RBACMiddleware(h.rbacService, "write:files"))
 	authGroup.GET("/storage/files", h.List, authMiddleware, middleware.RBACMiddleware(h.rbacService, "read:files"))
 	authGroup.GET("/storage/files/:id", h.Download, authMiddleware, middleware.RBACMiddleware(h.rbacService, "read:files"))
+	authGroup.GET("/storage/files/:id/:filename", h.Download, authMiddleware, middleware.RBACMiddleware(h.rbacService, "read:files"))
 	authGroup.DELETE("/storage/files/:id", h.Delete, authMiddleware, middleware.RBACMiddleware(h.rbacService, "delete:files"))
 
 	publicGroup.GET("/storage/files/:id", h.DownloadPublic)
+	publicGroup.GET("/storage/files/:id/:filename", h.DownloadPublic)
 }
 
 func (h *Handler) getMaxUploadBytes() int64 {
@@ -137,7 +157,7 @@ func (h *Handler) Upload(c echo.Context) error {
 	if c.Request().TLS != nil {
 		scheme = "https"
 	}
-	meta.URL = fmt.Sprintf("%s://%s/api/storage/files/%d", scheme, c.Request().Host, meta.ID)
+	meta.URL = fmt.Sprintf("%s://%s/api/storage/files/%d/%s", scheme, c.Request().Host, meta.ID, urlCleanFilename(meta.Filename))
 
 	return httputil.Created(c, meta)
 }
@@ -226,7 +246,7 @@ func (h *Handler) List(c echo.Context) error {
 	}
 	baseURL := fmt.Sprintf("%s://%s", scheme, c.Request().Host)
 	for i := range files {
-		files[i].URL = fmt.Sprintf("%s/api/storage/files/%d", baseURL, files[i].ID)
+		files[i].URL = fmt.Sprintf("%s/api/storage/files/%d/%s", baseURL, files[i].ID, urlCleanFilename(files[i].Filename))
 	}
 
 	nextCursor := int64(0)
